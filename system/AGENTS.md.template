@@ -1,0 +1,32 @@
+# Novel Project: {{title}}
+
+## Quick Reference
+- **Genre:** {{genre}} | **Format:** {{format}} | **Workflow:** {{workflow}}
+- **POV:** {{pov}} | **Tense:** {{tense}}
+- **Target:** {{targetWordCount}} words
+- **Structure:** {{structuralFramework}}
+
+## Voice Notes
+<!-- Describe your writing voice here: sentence length preferences, vocabulary level,
+     dialogue style, narrative distance, how you handle interiority, etc.
+     The AI will use this to match your voice when generating prose. -->
+
+*Not yet configured. Use the `voice-match` skill to generate this automatically from a writing sample.*
+
+## Key Rules
+<!-- World rules, magic system constraints, character rules, or any absolutes
+     the AI must never violate. Example: "Magic requires physical contact with a catalyst stone." -->
+
+*Add your world's unbreakable rules here.*
+
+## Current Focus
+<!-- Update this as you work to give the AI context about your current priorities.
+     Example: "Currently drafting Act 2. Focus on Kael's internal conflict." -->
+
+*Just getting started.*
+
+## Author Bio
+<!-- For future query letter generation. Include your relevant credentials,
+     previous publications, and why you're the right person to write this story. -->
+
+*Optional. Add when ready.*

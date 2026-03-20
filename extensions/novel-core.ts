@@ -1,0 +1,1173 @@
+// novel-core.ts — Phase 1: Foundation
+// Owns all project state, scene CRUD, search, validation, progress foundations
+// This extension MUST be loaded first (listed first in package.json pi.extensions)
+
+import path from "node:path";
+import fs from "node:fs";
+import { Type } from "@sinclair/typebox";
+import { Box, Text, Container, Spacer, truncateToWidth } from "@mariozechner/pi-tui";
+import {
+  readText, writeText, resolvePath, pathsEqual,
+  normalizeKey, toSafeFilename, validateFilename, getEditor
+} from "./utils/platform.ts";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ProjectConfig {
+  title: string;
+  author: string;
+  genre: string;
+  subgenre: string[];
+  format: "novel" | "novella" | "short-story" | "flash-fiction";
+  pov: string;
+  tense: string;
+  targetWordCount: number;
+  dailyWordGoal: number;
+  comparableTitles: string[];
+  structuralFramework: string;
+  workflow: "structured" | "discovery";
+  settings: {
+    autoSummary: boolean;
+    summaryModel: string;
+    draftModel: string;
+    editModel: string;
+    voiceProfilePath: string;
+    editor: string;
+    subscriptionMode: boolean;
+    contextBudget: {
+      system: number;
+      bible: number;
+      summaries: number;
+      recentProse: number;
+      currentScene: number;
+      voiceProfile: number;
+    };
+  };
+}
+
+interface SceneMetadata {
+  chapter: number;
+  scene: number;
+  title: string;
+  pov: string;
+  location: string;
+  timeline: string;
+  status: "outline" | "draft" | "revised" | "polished" | "final";
+  characters_present: string[];
+  plot_threads: string[];
+  tags: string[];
+  summary: string;
+  filePath: string;
+}
+
+interface NovelProject {
+  config: ProjectConfig;
+  rootPath: string;
+  scenes: Map<string, SceneMetadata>;
+}
+
+// ─── Shared State ─────────────────────────────────────────────────────────────
+// jiti may instantiate novel-core.ts more than once (once as a loaded extension,
+// again for each import { getProject } from "./novel-core.ts"). Each instance
+// gets its own closure, so a plain module-level variable won't be shared.
+// Solution: always write to globalThis AND a module-local variable.
+// - Internal code uses the module-local `project` (zero overhead, no change).
+// - The exported getProject() reads globalThis, so other modules see the value
+//   set by whichever instance ran session_start.
+
+const STATE_KEY = "__pi_novel_project__";
+
+let project: NovelProject | null = null;
+
+export function getProject(): NovelProject | null {
+  return (globalThis as any)[STATE_KEY] ?? null;
+}
+
+export function setProject(p: NovelProject): void {
+  project = p;
+  (globalThis as any)[STATE_KEY] = p;
+}
+
+function _setProject(p: NovelProject): void {
+  project = p;
+  (globalThis as any)[STATE_KEY] = p;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+
+function parseFrontmatter(content: string): { meta: Record<string, any>; body: string } {
+  const match = content.match(FRONTMATTER_RE);
+  if (!match) return { meta: {}, body: content };
+  const rawYaml = match[1];
+  const body = content.slice(match[0].length);
+  // Simple YAML parser for our known fields
+  const meta: Record<string, any> = {};
+  let currentKey = "";
+  let inArray = false;
+  for (const line of rawYaml.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const kvMatch = trimmed.match(/^(\w[\w_]*)\s*:\s*(.*)$/);
+    if (kvMatch) {
+      currentKey = kvMatch[1];
+      const val = kvMatch[2].trim();
+      if (val === "") {
+        inArray = false;
+      } else if (val.startsWith("[") && val.endsWith("]")) {
+        // Inline array
+        meta[currentKey] = val.slice(1, -1).split(",").map(s => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+        inArray = false;
+      } else if (val.startsWith('"') || val.startsWith("'")) {
+        meta[currentKey] = val.replace(/^["']|["']$/g, "");
+        inArray = false;
+      } else {
+        meta[currentKey] = isNaN(Number(val)) ? val : Number(val);
+        inArray = false;
+      }
+    } else if (trimmed.startsWith("- ")) {
+      if (!Array.isArray(meta[currentKey])) meta[currentKey] = [];
+      meta[currentKey].push(trimmed.slice(2).trim().replace(/^["']|["']$/g, ""));
+      inArray = true;
+    }
+  }
+  return { meta, body };
+}
+
+function buildFrontmatter(meta: Record<string, any>): string {
+  const lines: string[] = ["---"];
+  for (const [key, val] of Object.entries(meta)) {
+    if (Array.isArray(val)) {
+      lines.push(`${key}:`);
+      for (const item of val) {
+        lines.push(`  - ${JSON.stringify(item)}`);
+      }
+    } else if (typeof val === "string") {
+      lines.push(`${key}: ${JSON.stringify(val)}`);
+    } else {
+      lines.push(`${key}: ${val}`);
+    }
+  }
+  lines.push("---", "");
+  return lines.join("\n");
+}
+
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function sceneKey(chapter: number, scene: number): string {
+  return `${String(chapter).padStart(2, "0")}-${String(scene).padStart(2, "0")}`;
+}
+
+function ensureDir(dirPath: string): void {
+  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function scanScenes(rootPath: string, format: string): Map<string, SceneMetadata> {
+  const scenes = new Map<string, SceneMetadata>();
+  const msDir = path.join(rootPath, "manuscript");
+  if (!fs.existsSync(msDir)) return scenes;
+
+  if (format === "flash-fiction") {
+    const storyPath = path.join(msDir, "story.md");
+    if (fs.existsSync(storyPath)) {
+      const content = readText(storyPath);
+      const { meta } = parseFrontmatter(content);
+      scenes.set("01-01", { chapter: 1, scene: 1, filePath: storyPath, ...meta } as SceneMetadata);
+    }
+    return scenes;
+  }
+
+  if (format === "short-story") {
+    const scenesDir = path.join(msDir, "scenes");
+    if (!fs.existsSync(scenesDir)) return scenes;
+    for (const file of fs.readdirSync(scenesDir).sort()) {
+      if (!file.endsWith(".md")) continue;
+      const filePath = path.join(scenesDir, file);
+      const content = readText(filePath);
+      const { meta } = parseFrontmatter(content);
+      const key = sceneKey(1, meta.scene || 1);
+      scenes.set(key, { chapter: 1, filePath, ...meta } as SceneMetadata);
+    }
+    return scenes;
+  }
+
+  // novel / novella
+  const chapDir = path.join(msDir, "chapters");
+  if (!fs.existsSync(chapDir)) return scenes;
+  for (const chDir of fs.readdirSync(chapDir).sort()) {
+    const chPath = path.join(chapDir, chDir);
+    if (!fs.statSync(chPath).isDirectory()) continue;
+    const chNum = parseInt(chDir.split("-")[0], 10);
+    if (isNaN(chNum)) continue;
+    for (const file of fs.readdirSync(chPath).sort()) {
+      if (!file.endsWith(".md")) continue;
+      const filePath = path.join(chPath, file);
+      const content = readText(filePath);
+      const { meta } = parseFrontmatter(content);
+      const scNum = meta.scene || parseInt(file.replace(/\D/g, ""), 10) || 1;
+      const key = sceneKey(chNum, scNum);
+      scenes.set(key, { chapter: chNum, scene: scNum, filePath, ...meta } as SceneMetadata);
+    }
+  }
+  return scenes;
+}
+
+function loadProject(rootPath: string): NovelProject {
+  const configPath = path.join(rootPath, "project.json");
+  const config: ProjectConfig = JSON.parse(readText(configPath));
+  const scenes = scanScenes(rootPath, config.format);
+  return { config, rootPath, scenes };
+}
+
+// ─── Default project.json ─────────────────────────────────────────────────────
+
+function defaultProjectConfig(title: string): ProjectConfig {
+  return {
+    title,
+    author: "",
+    genre: "",
+    subgenre: [],
+    format: "novel",
+    pov: "third-limited",
+    tense: "past",
+    targetWordCount: 90000,
+    dailyWordGoal: 2000,
+    comparableTitles: [],
+    structuralFramework: "three-act",
+    workflow: "structured",
+    settings: {
+      autoSummary: false,
+      summaryModel: "haiku",
+      draftModel: "sonnet",
+      editModel: "opus",
+      voiceProfilePath: "bible/voice-profile.md",
+      editor: "auto",
+      subscriptionMode: false,
+      contextBudget: { system: 2000, bible: 4000, summaries: 4000, recentProse: 6000, currentScene: 3000, voiceProfile: 500 }
+    }
+  };
+}
+
+// ─── Extension Entry Point ────────────────────────────────────────────────────
+
+export default function novelCoreExtension(pi: any) {
+
+  // ─── Message Renderers ────────────────────────────────────────────────────
+  pi.registerMessageRenderer("novel-status", (message: any, _options: any, theme: any) => {
+    const details = message.details;
+    if (!details) return new Text("Invalid dashboard data.", 0, 0);
+
+    const maxW = Math.max(30, (process.stdout.columns || 60) - 4);
+    const T = (str: string) => truncateToWidth(str, maxW);
+
+    const container = new Container();
+
+    // Top Header
+    const headerBox = new Box(1, 0, (t: string) => theme.bold(theme.fg("accent", t)));
+    headerBox.addChild(new Text(T(` NOVEL DASHBOARD: ${String(details.projectTitle).toUpperCase()} `), 0, 0));
+    container.addChild(headerBox);
+
+    // Meta
+    container.addChild(new Text(T(`  ${details.genre || "Genre not set"} | POV: ${details.pov} | Tense: ${details.tense}  `), 0, 0, (t: string) => theme.fg("dim", t)));
+    container.addChild(new Spacer(1));
+
+    // Stats
+    const statsLabel = "  MANUSCRIPT PROGRESS  ";
+    const statsDashes = "─".repeat(Math.max(0, maxW - statsLabel.length));
+    container.addChild(new Text(statsLabel + statsDashes, 0, 0, (_t: string) => theme.fg("accent", statsLabel) + theme.fg("dim", statsDashes)));
+    container.addChild(new Text(T(`  ${details.totalWords} / ${details.targetWordCount} words (${details.pct}%)  `), 2, 0));
+    container.addChild(new Text(T(`  Chapters: ${details.chapters} | Scenes: ${details.scenes}  `), 2, 0, (t: string) => theme.fg("dim", t)));
+    container.addChild(new Spacer(1));
+
+    // Chapters
+    if (details.chapterStats && details.chapterStats.length > 0) {
+      const chLabel = "  CHAPTER BREAKDOWN  ";
+      const chDashes = "─".repeat(Math.max(0, maxW - chLabel.length));
+      container.addChild(new Text(chLabel + chDashes, 0, 0, (_t: string) => theme.fg("accent", chLabel) + theme.fg("dim", chDashes)));
+      for (const ch of details.chapterStats) {
+         const dominant = ch.dominant;
+         const color = dominant === "FINAL" ? "success" : 
+                       dominant === "POLISHED" ? "success" :
+                       dominant === "DRAFT" ? "accent" :
+                       dominant === "WARNING" ? "warning" : "dim";
+         
+         const padCh = String(ch.ch).padStart(2);
+         const padWords = String(ch.words).padStart(6);
+         const line = `Ch ${padCh}: ${ch.scenes} scenes, ${padWords} words`;
+         container.addChild(new Text(T(`  ${theme.fg(color, "[ " + dominant.padEnd(7) + "]")} ` + line), 2, 0));
+      }
+    }
+
+    // Alerts
+    if (details.alerts && details.alerts.length > 0) {
+      container.addChild(new Spacer(1));
+      container.addChild(new Text(T(`  ALERTS  `), 0, 0, (t: string) => theme.bg("error", theme.fg("text", t))));
+      for (const alert of details.alerts) {
+         const badge = alert.level === "error" ? theme.fg("error", "[ ERROR ]") : theme.fg("warning", "[ WARN  ]");
+         container.addChild(new Text(T(`  ${badge} ${alert.message}  `), 2, 0));
+      }
+    }
+
+    if (details.apiCost !== undefined) {
+      container.addChild(new Spacer(1));
+      container.addChild(new Text(T(`  API Cost: $${details.apiCost.toFixed(2)} USD  `), 2, 0, (t: string) => theme.fg("dim", t)));
+    }
+
+    const outerBox = new Box(1, 1);
+    outerBox.addChild(container);
+    return outerBox;
+  });
+
+  // ─── Session Start: Load existing project ─────────────────────────────────
+  pi.on("session_start", async (_event: any, ctx: any) => {
+    const projectJsonPath = path.join(ctx.cwd, "project.json");
+    if (fs.existsSync(projectJsonPath)) {
+      try {
+        _setProject(loadProject(ctx.cwd));
+        pi.setSessionName(project!.config.title);
+        pi.events.emit("novel:project-loaded", { project });
+      } catch (err: any) {
+        pi.sendMessage({
+          customType: "markdown",
+          content: `Warning: Found project.json in ${ctx.cwd} but failed to load it.\n\nError: ${err?.message || String(err)}\n\nRun \`/PNW-load ${ctx.cwd}\` to retry, or \`/PNW-init\` to create a new project.`,
+          display: { title: "Project Load Error", isSummary: true }
+        });
+      }
+    }
+  });
+
+  // ─── /PNW-load Command ────────────────────────────────────────────────────
+  pi.registerCommand("PNW-load", {
+    description: "Load an existing novel project from a path (e.g. /PNW-load C:/projects/my-novel)",
+    handler: async (args: string, ctx: any) => {
+      const targetPath = args.trim() || ctx.cwd;
+      const projectJsonPath = path.join(targetPath, "project.json");
+      if (!fs.existsSync(projectJsonPath)) {
+        pi.sendMessage({ customType: "markdown", content: `No project.json found in: ${targetPath}\n\nRun \`/PNW-init\` to create a new project there.`, display: { title: "Error", isSummary: true } });
+        return;
+      }
+      try {
+        _setProject(loadProject(targetPath));
+        pi.setSessionName(project!.config.title);
+        pi.events.emit("novel:project-loaded", { project });
+        pi.sendMessage({ customType: "markdown", content: `Loaded project: **${project!.config.title}**\nPath: ${targetPath}`, display: { title: "Project Loaded", isSummary: false } });
+      } catch (err: any) {
+        pi.sendMessage({ customType: "markdown", content: `Failed to load project from: ${targetPath}\n\nError: ${err?.message || String(err)}`, display: { title: "Error", isSummary: true } });
+      }
+    }
+  });
+
+  // ─── /PNW-init Command ────────────────────────────────────────────────────
+  pi.registerCommand("PNW-init", {
+    description: "Initialize a new novel project in the current directory",
+    handler: async (args: string, ctx: any) => {
+      const root = ctx.cwd;
+      const isQuick = args?.includes("--quick");
+      const title = "Untitled Novel";
+
+      // Create project.json
+      const config = defaultProjectConfig(title);
+      writeText(path.join(root, "project.json"), JSON.stringify(config, null, 2));
+
+      // Create .gitattributes
+      writeText(path.join(root, ".gitattributes"), "* text=auto eol=lf\n*.json text eol=lf\n*.md   text eol=lf\n*.yaml text eol=lf\n");
+
+      // Create .gitignore
+      writeText(path.join(root, ".gitignore"), "node_modules/\n.pi/edit-suggestions.json\n.pi/progress.json\n.pi/github.json\nexports/\n");
+
+      if (isQuick) {
+        // Minimal: just project.json + first scene
+        const sceneDir = path.join(root, "manuscript", "chapters", "01");
+        ensureDir(sceneDir);
+        const sceneMeta = { chapter: 1, scene: 1, title: "Opening Scene", pov: "", location: "", timeline: "", status: "outline", characters_present: [], plot_threads: [], tags: [], summary: "" };
+        writeText(path.join(sceneDir, "scene-01.md"), buildFrontmatter(sceneMeta) + "\n");
+      } else {
+        // Full directory structure
+        const dirs = [
+          ".pi",
+          "outline", "outline/chapters",
+          "manuscript/chapters",
+          "bible", "bible/characters", "bible/world", "bible/locations", "bible/items", "bible/factions",
+          "timeline", "continuity", "summaries/chapters", "summaries/scenes",
+          "feedback", "notes/deleted-scenes", "notes/deleted-bible", "exports"
+        ];
+        for (const d of dirs) ensureDir(path.join(root, d));
+
+        // .gitkeep files
+        const gitkeeps = [
+          "outline/chapters", "manuscript/chapters", "bible/characters", "bible/world",
+          "bible/locations", "bible/items", "bible/factions", "summaries/chapters",
+          "summaries/scenes", "feedback", "notes/deleted-scenes", "notes/deleted-bible", "exports"
+        ];
+        for (const d of gitkeeps) {
+          const keepPath = path.join(root, d, ".gitkeep");
+          if (!fs.existsSync(keepPath)) writeText(keepPath, "");
+        }
+
+        // Create placeholder files
+        writeText(path.join(root, "premise.md"), "# Premise\n\n*Develop your premise using the `premise` skill.*\n");
+        writeText(path.join(root, "outline", "beat-sheet.md"), "# Beat Sheet\n\n*Create your beat sheet using the `outline-novel` skill.*\n");
+        writeText(path.join(root, "bible", "voice-profile.md"), "# Voice Profile\n\n*Generate your voice profile using the `voice-match` skill.*\n");
+        writeText(path.join(root, "timeline", "timeline.json"), JSON.stringify({ events: [] }, null, 2));
+        writeText(path.join(root, "continuity", "facts.json"), JSON.stringify({ last_synced: "", characters: {}, world_rules: [] }, null, 2));
+        writeText(path.join(root, "continuity", "character-states.json"), JSON.stringify({}, null, 2));
+        writeText(path.join(root, "continuity", "report.json"), JSON.stringify({ last_run: "", issues: [] }, null, 2));
+
+        // Copy SYSTEM.md to .pi/
+        const pkgDir = path.resolve(new URL(".", import.meta.url).pathname.replace(/^\/([A-Z]:)/i, "$1"), "..");
+        const systemSrc = path.join(pkgDir, "system", "SYSTEM.md");
+        if (fs.existsSync(systemSrc)) {
+          writeText(path.join(root, ".pi", "SYSTEM.md"), readText(systemSrc));
+        }
+
+        // Generate AGENTS.md from template
+        const templateSrc = path.join(pkgDir, "system", "AGENTS.md.template");
+        if (fs.existsSync(templateSrc)) {
+          let agentsContent = readText(templateSrc);
+          agentsContent = agentsContent
+            .replace(/\{\{title\}\}/g, config.title)
+            .replace(/\{\{genre\}\}/g, config.genre || "Not set")
+            .replace(/\{\{format\}\}/g, config.format)
+            .replace(/\{\{workflow\}\}/g, config.workflow)
+            .replace(/\{\{pov\}\}/g, config.pov)
+            .replace(/\{\{tense\}\}/g, config.tense)
+            .replace(/\{\{targetWordCount\}\}/g, String(config.targetWordCount))
+            .replace(/\{\{structuralFramework\}\}/g, config.structuralFramework);
+          writeText(path.join(root, ".pi", "AGENTS.md"), agentsContent);
+        }
+
+        // Create first chapter + scene
+        const ch1Dir = path.join(root, "manuscript", "chapters", "01");
+        ensureDir(ch1Dir);
+        const sceneMeta = { chapter: 1, scene: 1, title: "Opening Scene", pov: "", location: "", timeline: "", status: "outline", characters_present: [], plot_threads: [], tags: [], summary: "" };
+        writeText(path.join(ch1Dir, "scene-01.md"), buildFrontmatter(sceneMeta) + "\n");
+      }
+
+      // Load the new project
+      _setProject(loadProject(root));
+      pi.setSessionName(project!.config.title);
+      pi.events.emit("novel:project-loaded", { project });
+
+      pi.sendMessage({
+        customType: "markdown",
+        content: `Novel project "${config.title}" initialized. Run the getting-started skill to configure your project.`,
+        display: { title: "Init", isSummary: false }
+      });
+    }
+  });
+
+  // ─── /PNW-status Command ──────────────────────────────────────────────────
+  pi.registerCommand("PNW-status", {
+    description: "Show project dashboard with word count, chapter status, and alerts",
+    handler: async (_args: string, ctx: any) => {
+      if (!project) {
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        return;
+      }
+      const c = project.config;
+      let totalWords = 0;
+      const chapterStats = new Map<number, { scenes: number[]; words: number; statuses: string[] }>();
+
+      for (const [_key, scene] of project.scenes) {
+        const content = readText(scene.filePath);
+        const { body } = parseFrontmatter(content);
+        const words = countWords(body);
+        totalWords += words;
+        const stat = chapterStats.get(scene.chapter) || { scenes: [], words: 0, statuses: [] };
+        stat.scenes.push(scene.scene);
+        stat.words += words;
+        stat.statuses.push(scene.status);
+        chapterStats.set(scene.chapter, stat);
+      }
+
+      const pct = c.targetWordCount > 0 ? ((totalWords / c.targetWordCount) * 100).toFixed(1) : "0.0";
+
+      const chapterStatsArr = [...chapterStats.entries()].sort((a, b) => a[0] - b[0]).map(([ch, stat]) => {
+        const dominantStatus = stat.statuses.sort()[Math.floor(stat.statuses.length / 2)];
+        return { ch, words: stat.words, scenes: stat.scenes.length, dominant: dominantStatus ? dominantStatus.toUpperCase() : "UNKNOWN" };
+      });
+
+      const missingGaps: string[] = [];
+      const chNums = [...chapterStats.keys()].sort((a,b) => a - b);
+      if (chNums.length > 0) {
+          const minCh = chNums[0];
+          const maxCh = chNums[chNums.length - 1];
+          for (let i = minCh; i <= maxCh; i++) {
+              if (!chapterStats.has(i)) missingGaps.push(`Chapter ${i} missing`);
+          }
+      }
+      for (const [ch, stat] of chapterStats) {
+          if (stat.scenes.length > 0) {
+              const scNums = [...stat.scenes].sort((a,b) => a - b);
+              const minSc = scNums[0];
+              const maxSc = scNums[scNums.length - 1];
+              for (let i = minSc; i <= maxSc; i++) {
+                  if (!scNums.includes(i)) missingGaps.push(`Chapter ${ch} Scene ${i} missing`);
+              }
+          }
+      }
+
+      let apiCost: number | undefined;
+      const progressPath = path.join(project.rootPath, ".pi", "progress.json");
+      if (fs.existsSync(progressPath)) {
+        try {
+          const prog = JSON.parse(readText(progressPath));
+          if (prog.cumulative_api_cost_usd !== undefined) {
+             apiCost = prog.cumulative_api_cost_usd;
+          }
+        } catch(e) {}
+      }
+
+      pi.sendMessage({
+        customType: "novel-status",
+        content: `Dashboard for ${c.title}`,
+        display: { title: "Dashboard", isSummary: false },
+        details: {
+           projectTitle: c.title,
+           genre: c.genre, pov: c.pov, tense: c.tense,
+           totalWords, targetWordCount: c.targetWordCount, pct,
+           chapters: chapterStats.size, scenes: project.scenes.size,
+           chapterStats: chapterStatsArr,
+           alerts: missingGaps,
+           apiCost
+        }
+      });
+    }
+  });
+
+
+
+  // ─── Tool: novel_project_info ─────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_project_info",
+    label: "Project Info",
+    description: "Read project.json and return project metadata including format, workflow, word count target, and settings",
+    parameters: Type.Object({}),
+    execute: async () => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded. Run /PNW-init first." }] };
+      return { content: [{ type: "text", text: JSON.stringify(project.config, null, 2) }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_create ─────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_create",
+    label: "Create Scene",
+    description: "Create a new scene file with YAML frontmatter and auto-numbering",
+    parameters: Type.Object({
+      chapter: Type.Number({ description: "Chapter number" }),
+      title: Type.Optional(Type.String({ description: "Scene title" })),
+      pov: Type.Optional(Type.String({ description: "POV character name" })),
+      location: Type.Optional(Type.String({ description: "Scene location" })),
+      timeline: Type.Optional(Type.String({ description: "Timeline position (e.g. 'Day 3, Morning')" })),
+      characters_present: Type.Optional(Type.Array(Type.String(), { description: "Characters in this scene" })),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded. Run /PNW-init first." }] };
+      const { chapter, title, pov, location, timeline, characters_present } = params;
+
+      // Find next scene number for this chapter
+      let maxScene = 0;
+      for (const [_k, s] of project.scenes) {
+        if (s.chapter === chapter && s.scene > maxScene) maxScene = s.scene;
+      }
+      const sceneNum = maxScene + 1;
+
+      // Build path
+      const chDirName = String(chapter).padStart(2, "0");
+      const chDir = path.join(project.rootPath, "manuscript", "chapters", chDirName);
+      ensureDir(chDir);
+
+      const meta: Record<string, any> = {
+        chapter, scene: sceneNum,
+        title: title || `Scene ${sceneNum}`,
+        pov: pov || "", location: location || "", timeline: timeline || "",
+        status: "outline",
+        characters_present: characters_present || [], plot_threads: [], tags: [], summary: ""
+      };
+
+      const fileName = `scene-${String(sceneNum).padStart(2, "0")}.md`;
+      const filePath = path.join(chDir, fileName);
+      writeText(filePath, buildFrontmatter(meta) + "\n");
+
+      // Update in-memory state
+      const key = sceneKey(chapter, sceneNum);
+      project.scenes.set(key, { ...meta, filePath } as SceneMetadata);
+
+      return { content: [{ type: "text", text: `Created scene: Chapter ${chapter}, Scene ${sceneNum} — "${meta.title}"\nFile: ${filePath}` }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_read ───────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_read",
+    label: "Read Scene",
+    description: "Read a scene file with parsed frontmatter, word count, and prose content. Supports offset/limit for large scenes.",
+    parameters: Type.Object({
+      chapter: Type.Number({ description: "Chapter number" }),
+      scene: Type.Number({ description: "Scene number" }),
+      offset: Type.Optional(Type.Number({ description: "Line offset to start reading from" })),
+      limit: Type.Optional(Type.Number({ description: "Max lines to return" })),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded. Run /PNW-init first." }] };
+      const key = sceneKey(params.chapter, params.scene);
+      const scene = project.scenes.get(key);
+      if (!scene) return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} not found.` }] };
+
+      const content = readText(scene.filePath);
+      const { meta, body } = parseFrontmatter(content);
+      const words = countWords(body);
+      let lines = body.split("\n");
+      const totalLines = lines.length;
+
+      if (params.offset) lines = lines.slice(params.offset);
+      if (params.limit) lines = lines.slice(0, params.limit);
+
+      const result = {
+        ...meta,
+        wordCount: words,
+        totalLines,
+        content: lines.join("\n"),
+      };
+
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_status ─────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_status",
+    label: "Update Scene Status",
+    description: "Update a scene's status (outline → draft → revised → polished → final). After advancing status to 'draft' or higher, run summary_generate manually to create or refresh the scene summary.",
+    parameters: Type.Object({
+      chapter: Type.Number({ description: "Chapter number" }),
+      scene: Type.Number({ description: "Scene number" }),
+      status: Type.String({ description: "New status: outline, draft, revised, polished, or final" }),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const key = sceneKey(params.chapter, params.scene);
+      const scene = project.scenes.get(key);
+      if (!scene) return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} not found.` }] };
+
+      const validStatuses = ["outline", "draft", "revised", "polished", "final"];
+      if (!validStatuses.includes(params.status)) {
+        return { content: [{ type: "text", text: `Invalid status "${params.status}". Valid: ${validStatuses.join(", ")}` }] };
+      }
+
+      // Update frontmatter on disk
+      const content = readText(scene.filePath);
+      const { meta, body } = parseFrontmatter(content);
+      meta.status = params.status;
+      writeText(scene.filePath, buildFrontmatter(meta) + body);
+
+      // Update in-memory
+      scene.status = params.status;
+
+      // Emit event so other extensions can hook into it
+      pi.events.emit("novel:scene-status-updated", { chapter: params.chapter, scene: params.scene, status: params.status, content: body });
+
+      const reminder = params.status !== "outline" ? "\nRun summary_generate to update the scene summary." : "";
+      return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} status updated to "${params.status}".${reminder}` }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_delete ─────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_delete",
+    label: "Delete Scene",
+    description: "Archive a scene to notes/deleted-scenes/ (non-destructive delete)",
+    parameters: Type.Object({
+      chapter: Type.Number({ description: "Chapter number" }),
+      scene: Type.Number({ description: "Scene number" }),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const key = sceneKey(params.chapter, params.scene);
+      const scene = project.scenes.get(key);
+      if (!scene) return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} not found.` }] };
+
+      const archiveDir = path.join(project.rootPath, "notes", "deleted-scenes");
+      ensureDir(archiveDir);
+      const archiveName = `ch${String(params.chapter).padStart(2, "0")}-scene${String(params.scene).padStart(2, "0")}-${Date.now()}.md`;
+      fs.renameSync(scene.filePath, path.join(archiveDir, archiveName));
+      project.scenes.delete(key);
+
+      return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} archived to notes/deleted-scenes/${archiveName}` }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_move ───────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_move",
+    label: "Move Scene",
+    description: "Move a scene to a different chapter with automatic renumbering",
+    parameters: Type.Object({
+      chapter: Type.Number({ description: "Source chapter number" }),
+      scene: Type.Number({ description: "Source scene number" }),
+      targetChapter: Type.Number({ description: "Destination chapter number" }),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const key = sceneKey(params.chapter, params.scene);
+      const scene = project.scenes.get(key);
+      if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
+
+      // Find next available scene number in target chapter
+      let maxScene = 0;
+      for (const [_k, s] of project.scenes) {
+        if (s.chapter === params.targetChapter && s.scene > maxScene) maxScene = s.scene;
+      }
+      const newSceneNum = maxScene + 1;
+
+      // Create target directory
+      const targetDir = path.join(project.rootPath, "manuscript", "chapters", String(params.targetChapter).padStart(2, "0"));
+      ensureDir(targetDir);
+
+      // Update frontmatter
+      const content = readText(scene.filePath);
+      const { meta, body } = parseFrontmatter(content);
+      meta.chapter = params.targetChapter;
+      meta.scene = newSceneNum;
+
+      const newFileName = `scene-${String(newSceneNum).padStart(2, "0")}.md`;
+      const newPath = path.join(targetDir, newFileName);
+      writeText(newPath, buildFrontmatter(meta) + body);
+      fs.unlinkSync(scene.filePath);
+
+      // Update in-memory
+      project.scenes.delete(key);
+      const newKey = sceneKey(params.targetChapter, newSceneNum);
+      project.scenes.set(newKey, { ...scene, chapter: params.targetChapter, scene: newSceneNum, filePath: newPath });
+
+      return { content: [{ type: "text", text: `Moved to Chapter ${params.targetChapter}, Scene ${newSceneNum}` }] };
+    }
+  });
+
+  // ─── Tool: novel_chapter_list ─────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_chapter_list",
+    label: "List Chapters",
+    description: "List all chapters with aggregate stats: scene count, word count, status breakdown",
+    parameters: Type.Object({}),
+    execute: async () => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const stats = new Map<number, { scenes: number; words: number; statuses: string[] }>();
+
+      for (const [_k, scene] of project.scenes) {
+        const content = readText(scene.filePath);
+        const { body } = parseFrontmatter(content);
+        const words = countWords(body);
+        const s = stats.get(scene.chapter) || { scenes: 0, words: 0, statuses: [] };
+        s.scenes++;
+        s.words += words;
+        s.statuses.push(scene.status);
+        stats.set(scene.chapter, s);
+      }
+
+      const lines = ["Chapter | Scenes | Words | Status"];
+      for (const [ch, s] of [...stats.entries()].sort((a, b) => a[0] - b[0])) {
+        const dominantStatus = s.statuses.sort()[Math.floor(s.statuses.length / 2)];
+        const dominant = dominantStatus ? dominantStatus : "unknown";
+        lines.push(`${String(ch).padStart(3)}     | ${String(s.scenes).padStart(6)} | ${String(s.words).padStart(5)} | ${dominant}`);
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    }
+  });
+
+  // ─── Tool: novel_search ───────────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_search",
+    label: "Search Manuscript",
+    description: "Search across all manuscript files with chapter/scene/line/context results. Supports regex and plain text.",
+    parameters: Type.Object({
+      query: Type.String({ description: "Search query (text or regex)" }),
+      regex: Type.Optional(Type.Boolean({ description: "Treat query as regex" })),
+      chapterMin: Type.Optional(Type.Number({ description: "Filter: minimum chapter number" })),
+      chapterMax: Type.Optional(Type.Number({ description: "Filter: maximum chapter number" })),
+      status: Type.Optional(Type.String({ description: "Filter: scene status" })),
+      pov: Type.Optional(Type.String({ description: "Filter: POV character" })),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const results: string[] = [];
+      const pattern = params.regex ? new RegExp(params.query, "gi") : null;
+
+      for (const [_k, scene] of project.scenes) {
+        if (params.chapterMin && scene.chapter < params.chapterMin) continue;
+        if (params.chapterMax && scene.chapter > params.chapterMax) continue;
+        if (params.status && scene.status !== params.status) continue;
+        if (params.pov && normalizeKey(scene.pov) !== normalizeKey(params.pov)) continue;
+
+        const content = readText(scene.filePath);
+        const { body } = parseFrontmatter(content);
+        const lines = body.split("\n");
+
+        for (let i = 0; i < lines.length; i++) {
+          const match = pattern ? pattern.test(lines[i]) : lines[i].toLowerCase().includes(params.query.toLowerCase());
+          if (match) {
+            results.push(`Ch${scene.chapter} Sc${scene.scene} L${i + 1}: ${lines[i].trim()}`);
+            if (results.length >= 50) break;
+          }
+          if (pattern) pattern.lastIndex = 0; // reset regex state
+        }
+        if (results.length >= 50) break;
+      }
+
+      if (results.length === 0) return { content: [{ type: "text", text: "No results found." }] };
+      return { content: [{ type: "text", text: `Found ${results.length} matches:\n\n${results.join("\n")}` }] };
+    }
+  });
+
+  // ─── Tool: novel_validate ─────────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_validate",
+    label: "Validate Scenes",
+    description: "Scan all scene files for frontmatter issues. Report and optionally fix problems.",
+    parameters: Type.Object({
+      fix: Type.Optional(Type.Boolean({ description: "Automatically fix issues where possible" })),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const issues: string[] = [];
+
+      for (const [key, scene] of project.scenes) {
+        const content = readText(scene.filePath);
+        const { meta } = parseFrontmatter(content);
+        if (!meta.chapter) issues.push(`${key}: missing 'chapter' field`);
+        if (!meta.scene) issues.push(`${key}: missing 'scene' field`);
+        if (!meta.status) issues.push(`${key}: missing 'status' field`);
+        if (meta.chapter && meta.chapter !== scene.chapter) {
+          issues.push(`${key}: frontmatter chapter (${meta.chapter}) doesn't match path (${scene.chapter})`);
+        }
+      }
+
+      if (issues.length === 0) return { content: [{ type: "text", text: "✓ All scenes valid. No issues found." }] };
+      return { content: [{ type: "text", text: `Found ${issues.length} issues:\n\n${issues.join("\n")}` }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_list ───────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_list",
+    label: "List Scenes",
+    description: "List all scenes with metadata: chapter, scene number, title, status, POV, word count (computed on-the-fly)",
+    parameters: Type.Object({
+      chapter: Type.Optional(Type.Number({ description: "Filter by chapter number" })),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const rows: string[] = ["Ch | Sc | Title | Status | POV | Words"];
+
+      for (const [_k, scene] of [...project.scenes.entries()].sort()) {
+        if (params.chapter && scene.chapter !== params.chapter) continue;
+        const content = readText(scene.filePath);
+        const { body } = parseFrontmatter(content);
+        const words = countWords(body);
+        rows.push(`${String(scene.chapter).padStart(2)} | ${String(scene.scene).padStart(2)} | ${scene.title || "--"} | ${scene.status} | ${scene.pov || "--"} | ${words}`);
+      }
+
+      return { content: [{ type: "text", text: rows.join("\n") }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_write ──────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_write",
+    label: "Write Scene",
+    description: "Write or update scene prose content, preserving YAML frontmatter",
+    parameters: Type.Object({
+      chapter: Type.Number({ description: "Chapter number" }),
+      scene: Type.Number({ description: "Scene number" }),
+      content: Type.String({ description: "New prose content for the scene body (frontmatter is preserved)" }),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const key = sceneKey(params.chapter, params.scene);
+      const scene = project.scenes.get(key);
+      if (!scene) return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} not found.` }] };
+
+      const existing = readText(scene.filePath);
+      const { meta } = parseFrontmatter(existing);
+      writeText(scene.filePath, buildFrontmatter(meta) + params.content);
+
+      return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} updated. Words: ${countWords(params.content)}` }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_split ────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_split",
+    label: "Split Scene",
+    description: "Split a scene into two files at a paragraph boundary",
+    parameters: Type.Object({
+      chapter: Type.Number({ description: "Chapter number" }),
+      scene: Type.Number({ description: "Scene number" }),
+      splitAtLine: Type.Number({ description: "Line number to split at (content after this line goes to the new scene)" }),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const key = sceneKey(params.chapter, params.scene);
+      const scene = project.scenes.get(key);
+      if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
+
+      const content = readText(scene.filePath);
+      const { meta, body } = parseFrontmatter(content);
+      const lines = body.split("\n");
+      if (params.splitAtLine < 1 || params.splitAtLine >= lines.length) {
+        return { content: [{ type: "text", text: `Invalid split line. Scene has ${lines.length} lines.` }] };
+      }
+
+      const firstHalf = lines.slice(0, params.splitAtLine).join("\n");
+      const secondHalf = lines.slice(params.splitAtLine).join("\n");
+
+      // Update original scene
+      writeText(scene.filePath, buildFrontmatter(meta) + firstHalf);
+
+      // Create new scene with next number
+      let maxScene = 0;
+      for (const [_k, s] of project.scenes) {
+        if (s.chapter === params.chapter && s.scene > maxScene) maxScene = s.scene;
+      }
+      const newNum = maxScene + 1;
+      const newMeta = { ...meta, scene: newNum, title: `${meta.title || "Scene"} (continued)`, summary: "" };
+      const chDir = path.dirname(scene.filePath);
+      const newPath = path.join(chDir, `scene-${String(newNum).padStart(2, "0")}.md`);
+      writeText(newPath, buildFrontmatter(newMeta) + secondHalf);
+
+      const newKey = sceneKey(params.chapter, newNum);
+      project.scenes.set(newKey, { ...scene, scene: newNum, title: newMeta.title, filePath: newPath } as SceneMetadata);
+
+      return { content: [{ type: "text", text: `Split at line ${params.splitAtLine}. New scene: Ch${params.chapter} Sc${newNum}` }] };
+    }
+  });
+
+  // ─── Tool: novel_scene_merge ────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_scene_merge",
+    label: "Merge Scenes",
+    description: "Merge two adjacent scenes. First scene's frontmatter is preserved; characters_present are unioned; second scene's prose is appended after a scene break. Originals archived.",
+    parameters: Type.Object({
+      chapter: Type.Number({ description: "Chapter number" }),
+      scene1: Type.Number({ description: "First scene number (this scene's frontmatter is kept)" }),
+      scene2: Type.Number({ description: "Second scene number (this scene is merged into the first)" }),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const key1 = sceneKey(params.chapter, params.scene1);
+      const key2 = sceneKey(params.chapter, params.scene2);
+      const s1 = project.scenes.get(key1);
+      const s2 = project.scenes.get(key2);
+      if (!s1 || !s2) return { content: [{ type: "text", text: "One or both scenes not found." }] };
+
+      const content1 = readText(s1.filePath);
+      const content2 = readText(s2.filePath);
+      const { meta: meta1, body: body1 } = parseFrontmatter(content1);
+      const { meta: meta2, body: body2 } = parseFrontmatter(content2);
+
+      // Union characters_present
+      const chars = new Set([...(meta1.characters_present || []), ...(meta2.characters_present || [])]);
+      meta1.characters_present = [...chars];
+
+      // Archive originals
+      const archiveDir = path.join(project.rootPath, "notes", "deleted-scenes");
+      ensureDir(archiveDir);
+      const ts = Date.now();
+      fs.copyFileSync(s1.filePath, path.join(archiveDir, `pre-merge-${ts}-sc${params.scene1}.md`));
+      fs.copyFileSync(s2.filePath, path.join(archiveDir, `pre-merge-${ts}-sc${params.scene2}.md`));
+
+      // Merge: first body + scene break + second body
+      const merged = body1.trimEnd() + "\n\n***\n\n" + body2.trimStart();
+      writeText(s1.filePath, buildFrontmatter(meta1) + merged);
+
+      // Remove second scene
+      fs.unlinkSync(s2.filePath);
+      project.scenes.delete(key2);
+
+      return { content: [{ type: "text", text: `Merged scenes ${params.scene1} + ${params.scene2}. Originals archived.` }] };
+    }
+  });
+
+  // ─── Tool: novel_find_replace ───────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_find_replace",
+    label: "Find & Replace",
+    description: "Find and replace across the entire project (manuscript, bible, outlines, summaries). Supports preview mode.",
+    parameters: Type.Object({
+      find: Type.String({ description: "Text to find" }),
+      replace: Type.String({ description: "Replacement text" }),
+      preview: Type.Optional(Type.Boolean({ description: "Preview only — don't apply changes (default: true)" })),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const previewMode = params.preview !== false;
+      const results: string[] = [];
+      let totalReplacements = 0;
+
+      const scanDirs = ["manuscript", "bible", "outline", "summaries"];
+      for (const dir of scanDirs) {
+        const dirPath = path.join(project.rootPath, dir);
+        if (!fs.existsSync(dirPath)) continue;
+        const files = getAllMdFiles(dirPath);
+        for (const filePath of files) {
+          const content = readText(filePath);
+          const count = (content.match(new RegExp(escapeRegex(params.find), "g")) || []).length;
+          if (count > 0) {
+            const rel = path.relative(project.rootPath, filePath);
+            results.push(`${rel}: ${count} occurrence(s)`);
+            totalReplacements += count;
+            if (!previewMode) {
+              const updated = content.split(params.find).join(params.replace);
+              writeText(filePath, updated);
+            }
+          }
+        }
+      }
+
+      if (totalReplacements === 0) return { content: [{ type: "text", text: "No matches found." }] };
+      const action = previewMode ? "Would replace" : "Replaced";
+      return { content: [{ type: "text", text: `${action} ${totalReplacements} occurrences across ${results.length} files:\n\n${results.join("\n")}` }] };
+    }
+  });
+
+  // ─── Tool: novel_rename_entity ──────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_rename_entity",
+    label: "Rename Entity",
+    description: "Rename a character/location/item everywhere using word-boundary matching. Handles case variations and updates aliases.",
+    parameters: Type.Object({
+      oldName: Type.String({ description: "Current entity name" }),
+      newName: Type.String({ description: "New entity name" }),
+      preview: Type.Optional(Type.Boolean({ description: "Preview only (default: true)" })),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const previewMode = params.preview !== false;
+      const pattern = new RegExp(`\\b${escapeRegex(params.oldName)}\\b`, "g");
+      const results: string[] = [];
+      let total = 0;
+
+      const scanDirs = ["manuscript", "bible", "outline", "summaries", "continuity", "timeline"];
+      for (const dir of scanDirs) {
+        const dirPath = path.join(project.rootPath, dir);
+        if (!fs.existsSync(dirPath)) continue;
+        const files = getAllFiles(dirPath);
+        for (const filePath of files) {
+          const content = readText(filePath);
+          const matches = content.match(pattern);
+          if (matches && matches.length > 0) {
+            const rel = path.relative(project.rootPath, filePath);
+            results.push(`${rel}: ${matches.length} occurrence(s)`);
+            total += matches.length;
+            if (!previewMode) {
+              const updated = content.replace(pattern, params.newName);
+              writeText(filePath, updated);
+            }
+          }
+        }
+      }
+
+      if (total === 0) return { content: [{ type: "text", text: `No occurrences of "${params.oldName}" found.` }] };
+      const action = previewMode ? "Would rename" : "Renamed";
+      return { content: [{ type: "text", text: `${action} ${total} occurrences across ${results.length} files:\n\n${results.join("\n")}` }] };
+    }
+  });
+
+  // ─── Tool: novel_reindex ────────────────────────────────────────────────
+  pi.registerTool({
+    name: "novel_reindex",
+    label: "Reindex Scenes",
+    description: "Rewrite all scene frontmatter to match file paths. Use to recover from manual file moves.",
+    parameters: Type.Object({}),
+    execute: async () => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      let fixed = 0;
+
+      // Re-scan from disk
+      const freshScenes = scanScenes(project.rootPath, project.config.format);
+      for (const [key, scene] of freshScenes) {
+        const content = readText(scene.filePath);
+        const { meta, body } = parseFrontmatter(content);
+        let needsUpdate = false;
+        if (meta.chapter !== scene.chapter) { meta.chapter = scene.chapter; needsUpdate = true; }
+        if (meta.scene !== scene.scene) { meta.scene = scene.scene; needsUpdate = true; }
+        if (needsUpdate) {
+          writeText(scene.filePath, buildFrontmatter(meta) + body);
+          fixed++;
+        }
+      }
+
+      project.scenes = freshScenes;
+      return { content: [{ type: "text", text: fixed > 0 ? `Reindexed ${fixed} scene(s).` : "All scenes already correctly indexed." }] };
+    }
+  });
+
+  // ─── Tool: cost_estimate ────────────────────────────────────────────────
+  pi.registerTool({
+    name: "cost_estimate",
+    label: "Cost Estimate",
+    description: "Estimate token cost for a planned operation (summary generation, analysis, bulk edit)",
+    parameters: Type.Object({
+      operation: Type.String({ description: "Operation type: summary, analysis, bulk-edit, or custom" }),
+      scope: Type.Optional(Type.String({ description: "Scope: scene, chapter, or all" })),
+    }),
+    execute: async (_id: string, params: any) => {
+      if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+
+      let totalWords = 0;
+      for (const [_k, scene] of project.scenes) {
+        const content = readText(scene.filePath);
+        const { body } = parseFrontmatter(content);
+        totalWords += countWords(body);
+      }
+
+      const tokensPerWord = 1.3;
+      const totalTokens = Math.round(totalWords * tokensPerWord);
+      const sceneCount = project.scenes.size;
+
+      const estimates: Record<string, string> = {
+        summary: `~${Math.round(totalTokens * 0.3)} input + ~${sceneCount * 150} output tokens (${sceneCount} scenes)`,
+        analysis: `~${totalTokens} input + ~${Math.round(sceneCount * 500)} output tokens`,
+        "bulk-edit": `~${totalTokens} input + ~${totalTokens} output tokens (full rewrite)`,
+        custom: `Project size: ${totalWords} words, ~${totalTokens} tokens, ${sceneCount} scenes`,
+      };
+
+      const est = estimates[params.operation] || estimates.custom;
+      return { content: [{ type: "text", text: `Cost estimate for "${params.operation}" (${params.scope || "all"}):\n${est}` }] };
+    }
+  });
+
+} // end extension
+
+// ─── File scanning helpers ────────────────────────────────────────────────────
+
+function getAllMdFiles(dir: string): string[] {
+  const results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) results.push(...getAllMdFiles(full));
+    else if (entry.name.endsWith(".md")) results.push(full);
+  }
+  return results;
+}
+
+function getAllFiles(dir: string): string[] {
+  const results: string[] = [];
+  if (!fs.existsSync(dir)) return results;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) results.push(...getAllFiles(full));
+    else if (entry.name.endsWith(".md") || entry.name.endsWith(".json")) results.push(full);
+  }
+  return results;
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

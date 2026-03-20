@@ -1,0 +1,40 @@
+{
+  "name": "@sonny/pi-novel-writer",
+  "version": "0.1.0",
+  "description": "Turn PI into a novel writing CLI agent",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": [
+      "./extensions/novel-core.ts",
+      "./extensions/novel-bible.ts",
+      "./extensions/novel-write.ts",
+      "./extensions/novel-edit.ts",
+      "./extensions/novel-export.ts",
+      "./extensions/novel-progress.ts",
+      "./extensions/novel-github.ts"
+    ],
+    "skills": [
+      "./skills/getting-started",
+      "./skills/import",
+      "./skills/premise",
+      "./skills/world-building",
+      "./skills/character-interview",
+      "./skills/retroactive-outline",
+      "./skills/outline-novel",
+      "./skills/outline-chapter",
+      "./skills/draft-scene",
+      "./skills/dev-edit",
+      "./skills/line-edit",
+      "./skills/copy-edit",
+      "./skills/continuity-check",
+      "./skills/voice-match",
+      "./skills/github-setup"
+    ],
+    "prompts": ["./prompts"],
+    "themes": ["./themes"]
+  },
+  "dependencies": {
+    "typescript": "^5.0.0",
+    "@sinclair/typebox": "^0.32.0"
+  }
+}
