@@ -27,3 +27,9 @@ Verification: 14 local tests passed. Additional fixtures test URL/branch rejecti
 Scope: add strict TypeScript checking for every extension and test, portable syntax/test runners, a pinned development dependency lock, and real extension registration/scene-summary fixtures for all four manuscript formats. Correct existing file-queue callbacks to return promises, capture project state in queued callbacks, and preserve literal review-status types. No errors are suppressed with ts-ignore or a reduced file include set.
 
 Verification: `npm run check` passes, including 18 tests. `npm ci --dry-run --offline` validates lock consistency locally. Local Node is 22.16.0, below the package's supported floor; the required remote check uses Node 22.19.0 and `npm ci`. The existing extension adapters still contain legacy `any` annotations; all new domain modules will use typed interfaces and runtime validation. Startup fixtures confirm that loading does not begin an autonomous paid run.
+
+## Change 05: Version the source crosswalk
+
+Scope: preserve all 56 Chapter 5 distinctions, their 48 Appendix B families, separate rubric scales, explicit method/scope and source cause-family namespaces, and named R0-R10 passes. No detector or automatic style judgment is claimed. Source differences and implementation decisions are documented instead of silently reconciled.
+
+Verification: strict typecheck and 21 regression tests pass. Mapping checks specifically prevent loss of character-reset/focalization and fragmentation/caricature/copying distinctions; invalid severity values fail without rescaling. This step does not change generated prose.
