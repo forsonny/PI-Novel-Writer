@@ -16,6 +16,10 @@ if (fs.existsSync(file)) {
   git('apply', '--check', '--index', '/tmp/pnw-reviewed.patch');
   git('apply', '--index', '/tmp/pnw-reviewed.patch');
   git('rm', '--', file);
+  if (git('diff', '--cached', '--name-only').split('\n').includes('package.json')) {
+    execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts'], { stdio: 'inherit' });
+    git('add', '--', 'package-lock.json');
+  }
   fs.writeFileSync('/tmp/pnw-reviewed-message', match[2]);
   git('diff', '--cached', '--check');
   console.log(git('diff', '--cached', '--stat'));
