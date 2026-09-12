@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { Type } from "typebox";
+import { summaryCurrent } from "./llgf/summaries.ts";
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getProject, refreshProject, parseFrontmatter, countWords, sceneKey } from "./novel-core.ts";
@@ -100,7 +101,7 @@ export function manuscriptIssues(p: ReturnType<typeof project>, run: Run, review
       if (!review || review.hash !== hash(body)) issues.push(`${key}: review missing or stale`);
       else if (review.findings.some(f => f.blocking)) issues.push(`${key}: blocking review finding`);
       const summary = path.join(p.rootPath, "summaries", "scenes", `${key}.md`);
-      if (!fs.existsSync(summary) || parseFrontmatter(readText(summary)).meta.hash !== hash(body)) {
+      if (!fs.existsSync(summary) || !summaryCurrent(p.rootPath, parseFrontmatter(readText(summary)).meta, body)) {
         issues.push(`${key}: summary missing or stale`);
       }
     }

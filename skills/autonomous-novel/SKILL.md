@@ -101,7 +101,9 @@ The extension owns `.pi/novel-run.json`; do not edit that file directly.
 After interruption or compaction, recover from saved evidence, not remembered
 intent. An outdated summary is not canon. Recheck changed dependencies locally.
 Read existing summaries with `summary_read` or ordinary read-only access; write
-them only through `summary_generate`. Freshness is mechanical, not factual. Use
+them only through `summary_generate`. First read `summary_source` and pass its
+`expectedSourceHash`; a stale source must be reread rather than stamped current.
+Freshness is mechanical, not factual. Use
 `context_summary` to inspect selected/omitted bible entries and summaries. Bounded
 character evidence is not proof of knowledge and cannot remove future material
 already present elsewhere in the conversation.

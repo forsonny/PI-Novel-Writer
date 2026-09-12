@@ -20,7 +20,8 @@ for (const format of ['novel', 'novella', 'short-story', 'flash-fiction'] as con
       assert.ok(getProject());
       await host.call('novel_scene_create', { chapter: 1, pov: 'Ilyen' }, fixture.ctx);
       await host.call('novel_scene_write', { chapter: 1, scene: 1, content: 'Snow collected on the empty chair.' }, fixture.ctx);
-      await host.call('summary_generate', { chapter: 1, scene: 1, summaryText: 'Snow is on the chair.' }, fixture.ctx);
+      const source = JSON.parse((await host.call('summary_source', { chapter: 1, scene: 1 }, fixture.ctx)).content[0].text);
+      await host.call('summary_generate', { chapter: 1, scene: 1, expectedSourceHash: source.expectedSourceHash, summaryText: 'Snow is on the chair.' }, fixture.ctx);
       const result = await host.call('summary_read', { chapter: 1, scene: 1 }, fixture.ctx);
       assert.match(result.content[0].text, /Freshness: current/);
       await host.call('novel_scene_write', { chapter: 1, scene: 1, content: 'The chair was gone.' }, fixture.ctx);
