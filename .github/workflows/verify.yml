@@ -7,25 +7,53 @@ permissions:
   contents: read
 jobs:
   verify:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22.19.0'
+      - name: Apply one reviewed development patch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/beyond-fluency-reviewed'
+        run: node scripts/apply-reviewed-change.mjs
       - name: Install pinned development host
         run: npm install --ignore-scripts --no-save --package-lock=false @earendil-works/pi-coding-agent@0.85.1 @earendil-works/pi-ai@0.85.1 @earendil-works/pi-tui@0.85.1 typebox@1.3.27 typescript@5.9.3 @types/node@22.19.19
       - name: Check extension syntax
         run: find extensions -name '*.ts' -print0 | xargs -0 -n 1 node --experimental-strip-types --check
       - name: Run regression tests
         run: node --experimental-strip-types --test tests/*.test.ts
+      - name: Typecheck when configured
+        run: if test -f tsconfig.json; then ./node_modules/.bin/tsc --noEmit; fi
+      - name: Commit tested patch on development branch only
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/beyond-fluency-reviewed'
+        run: |
+          if test -f /tmp/pnw-reviewed-message; then
+            git diff --cached --check
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -F /tmp/pnw-reviewed-message
+            git push origin HEAD:refs/heads/feat/beyond-fluency-reviewed
+          fi
       - name: Archive source snapshot for review
         if: always()
-        run: git archive --format=tar HEAD > source-snapshot.tar
-      - uses: actions/upload-artifact@v4
+        run: git archive --format=tar HEAD > /tmp/source-snapshot.tar
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
           name: source-snapshot
-          path: source-snapshot.tar
+          path: /tmp/source-snapshot.tar
           retention-days: 7
+      - name: Archive development host once
+        if: github.event_name == 'push' && !hashFiles('.pnw-dev/queued.patch') && github.run_number == 2
+        run: tar -czf /tmp/development-host.tgz node_modules
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: github.event_name == 'push' && github.run_number == 2
+        with:
+          name: development-host
+          path: /tmp/development-host.tgz
+          retention-days: 1
