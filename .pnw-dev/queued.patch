@@ -1,0 +1,384 @@
+PNW-BASE: d796bcd58e88de305321fa1c45dba2e341ae2e25
+PNW-MESSAGE: feat: bind summaries to source versions and dependencies
+
+diff --git a/docs/reviews/13-summaries.md b/docs/reviews/13-summaries.md
+new file mode 100644
+index 0000000..f55245b
+--- /dev/null
++++ b/docs/reviews/13-summaries.md
+@@ -0,0 +1,18 @@
++# Change 13: source-bound summaries and dependency freshness
++
++Wired summary_source and required expectedSourceHash into the actual summary tools.
++Chapter fingerprints include canonical scene order. Additional document dependencies
++are validated and checked both on save and retrieval. Missing, malformed, changed or
++escaped dependencies make a summary stale rather than factually false. Automatic
++context selection, refresh reporting and autonomous completion use the same test.
++Legacy summaries remain readable with their binding explicitly labeled legacy.
++Neither a matching hash nor a saved summary certifies reading or factual accuracy.
++
++Review found that autonomous completion had its own hash-only freshness check;
++replaced it with the shared dependency-aware check. Updated the autonomous skill so
++existing workflows learn the source-hash requirement. Added a chapter-reorder test
++rather than testing only scene text replacement.
++
++Verification: 64 tests pass, including actual tool registration, stale-source save
++rejection, upstream dependency invalidation, invalid dependency paths and chapter
++reordering. Syntax and strict TypeScript checks pass. No model calls were made.
+diff --git a/extensions/llgf/summaries.ts b/extensions/llgf/summaries.ts
+new file mode 100644
+index 0000000..4347516
+--- /dev/null
++++ b/extensions/llgf/summaries.ts
+@@ -0,0 +1,40 @@
++import fs from 'node:fs';
++import { Type, type Static } from 'typebox';
++import { readText } from '../utils/platform.ts';
++import { projectPath } from '../utils/safety.ts';
++import { checked, Strict, Hash, Nonempty, Sources, Span, Text, Id } from './schema.ts';
++import { hashText } from './version.ts';
++
++export const FileDependencySchema = Strict({ path: Nonempty, hash: Hash });
++export const FileDependenciesSchema = Type.Array(FileDependencySchema, { maxItems: 256 });
++export type FileDependency = Static<typeof FileDependencySchema>;
++/** Dependency hashes use the same LF-normalized text representation as legacy reads. */
++export function validateFileDependencies(root: string, value: unknown): FileDependency[] {
++  const dependencies = checked(FileDependenciesSchema, value, 'summary dependencies');
++  const seen = new Set<string>();
++  for (const item of dependencies) {
++    if (!/^(?:manuscript|bible|outline|continuity|timeline|summaries)\/.+\.(?:md|json)$/.test(item.path) && item.path !== 'project.json') throw new Error('Summary dependency is not an allowed project document');
++    const resolved = projectPath(root, item.path);
++    if (seen.has(resolved)) throw new Error('Duplicate summary dependency');
++    seen.add(resolved);
++  }
++  return dependencies;
++}
++export function staleFileDependencies(root: string, value: unknown): string[] {
++  return validateFileDependencies(root, value).filter(item => {
++    const file = projectPath(root, item.path);
++    return !fs.existsSync(file) || !fs.statSync(file).isFile() || hashText(readText(file)) !== item.hash;
++  }).map(item => item.path);
++}
++export function summaryCurrent(root: string, metadata: Record<string, unknown>, source: string): boolean {
++  if (!source || metadata.hash !== hashText(source)) return false;
++  try { return staleFileDependencies(root, metadata.dependencies ?? []).length === 0; }
++  catch { return false; }
++}
++/** Canonical-engine summaries are derived views, never an automatic fact verdict. */
++export const SummaryRecordSchema = Strict({
++  schemaVersion: Type.Literal(1), id: Id, sceneIds: Type.Array(Id, { minItems: 1, maxItems: 2000 }),
++  sourceHash: Hash, dependencies: Sources, evidence: Type.Array(Span, { maxItems: 256 }),
++  text: Nonempty, review: Type.Enum(['unreviewed', 'model_reviewed', 'human_reviewed'] as const),
++  reviewEvidence: Text, methodVersion: Nonempty,
++});
+diff --git a/extensions/novel-auto.ts b/extensions/novel-auto.ts
+index 959411a..37a55b4 100644
+--- a/extensions/novel-auto.ts
++++ b/extensions/novel-auto.ts
+@@ -3,6 +3,7 @@ import path from "node:path";
+ import { fileURLToPath } from "node:url";
+ import { createHash } from "node:crypto";
+ import { Type } from "typebox";
++import { summaryCurrent } from "./llgf/summaries.ts";
+ import { StringEnum } from "@earendil-works/pi-ai";
+ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+ import { getProject, refreshProject, parseFrontmatter, countWords, sceneKey } from "./novel-core.ts";
+@@ -100,7 +101,7 @@ export function manuscriptIssues(p: ReturnType<typeof project>, run: Run, review
+       if (!review || review.hash !== hash(body)) issues.push(`${key}: review missing or stale`);
+       else if (review.findings.some(f => f.blocking)) issues.push(`${key}: blocking review finding`);
+       const summary = path.join(p.rootPath, "summaries", "scenes", `${key}.md`);
+-      if (!fs.existsSync(summary) || parseFrontmatter(readText(summary)).meta.hash !== hash(body)) {
++      if (!fs.existsSync(summary) || !summaryCurrent(p.rootPath, parseFrontmatter(readText(summary)).meta, body)) {
+         issues.push(`${key}: summary missing or stale`);
+       }
+     }
+diff --git a/extensions/novel-write.ts b/extensions/novel-write.ts
+index 3dbee0f..98009b1 100644
+--- a/extensions/novel-write.ts
++++ b/extensions/novel-write.ts
+@@ -2,10 +2,13 @@ import path from "node:path";
+ import fs from "node:fs";
+ import crypto from "node:crypto";
+ import { Type } from "typebox";
+-import { truncateHead } from "@earendil-works/pi-coding-agent";
++import { truncateHead, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+ import { readText, writeText, ensureDir, normalizeKey } from "./utils/platform.ts";
+-import { getProject, replacePassage, orderedScenes, sceneKey, parseFrontmatter } from "./novel-core.ts";
++import { getProject, replacePassage, orderedScenes, sceneKey, parseFrontmatter, buildFrontmatter } from "./novel-core.ts";
+ import { findAllBibleEntries } from "./novel-bible.ts";
++import { Hash } from "./llgf/schema.ts";
++import { FileDependenciesSchema, validateFileDependencies, staleFileDependencies, summaryCurrent } from "./llgf/summaries.ts";
++import { projectPath } from "./utils/safety.ts";
+ 
+ function generateHash(content: string) {
+   return crypto.createHash("sha256").update(content).digest("hex");
+@@ -48,7 +51,7 @@ export default function novelWriteExtension(pi: any) {
+           const key = f.replace(".md", "");
+           const scene = project.scenes.get(key);
+           const summary = parseFrontmatter(readText(path.join(sumDir, "scenes", f)));
+-          if (scene && summary.meta.hash === generateHash(parseFrontmatter(readText(scene.filePath)).body)) {
++          if (scene && summaryCurrent(project.rootPath, summary.meta, parseFrontmatter(readText(scene.filePath)).body)) {
+             summaries[`scene:${key}`] = summary.body;
+           }
+        }
+@@ -58,7 +61,7 @@ export default function novelWriteExtension(pi: any) {
+        if (f.endsWith(".md")) {
+           const source = chapterSource(project, Number(f.replace(".md", "")));
+           const summary = parseFrontmatter(readText(path.join(sumDir, "chapters", f)));
+-          if (source && summary.meta.hash === generateHash(source)) summaries[`chapter:${f.replace(".md", "")}`] = summary.body;
++          if (summaryCurrent(project.rootPath, summary.meta, source)) summaries[`chapter:${f.replace(".md", "")}`] = summary.body;
+        }
+     }
+     // Act summaries have no verifiable source fingerprint; read them explicitly as notes.
+@@ -213,9 +216,9 @@ export default function novelWriteExtension(pi: any) {
+       const scene = params.scene == null ? undefined : p.scenes.get(key);
+       const source = params.scene == null ? chapterSource(p, params.chapter) :
+         scene ? parseFrontmatter(readText(scene.filePath)).body : "";
+-      const freshness = !source ? "orphan: no source prose" : summary.meta.hash === generateHash(source) ? "current" : "stale";
++      const freshness = !source ? "orphan: no source prose" : summaryCurrent(p.rootPath, summary.meta, source) ? "current" : "stale";
+       const output = truncateHead(summary.body);
+-      return { content: [{ type: "text", text: `Source: ${file}\nFreshness: ${freshness} (not a factual review).\n${output.content}${output.truncated ? "\n[Truncated; use ordinary read-only access to the source for the rest.]" : ""}` }] };
++      return { content: [{ type: "text", text: `Source: ${file}\nFreshness: ${freshness} (not a factual review; source binding: ${summary.meta.summary_schema === 1 ? "explicit" : "legacy"}).\n${output.content}${output.truncated ? "\n[Truncated; use ordinary read-only access to the source for the rest.]" : ""}` }] };
+     }
+   });
+ 
+@@ -305,51 +308,47 @@ export default function novelWriteExtension(pi: any) {
+     }
+   });
+ 
++  function summarySource(chapter: number, scene?: number) {
++    const p = getProject();
++    if (!p) throw new Error("No project loaded.");
++    const entries = orderedScenes(p).filter(s => s.chapter === chapter && (scene == null ? s.status !== "outline" : s.scene === scene));
++    if (!entries.length) throw new Error("No matching source scenes.");
++    const body = scene == null ? chapterSource(p, chapter) : parseFrontmatter(readText(entries[0].filePath)).body;
++    if (!body.trim()) throw new Error("Source prose is empty.");
++    return { body, expectedSourceHash: generateHash(body), sourceFiles: entries.map(s => path.relative(p.rootPath, s.filePath).replaceAll("\\", "/")) };
++  }
++  pi.registerTool({
++    name: "summary_source", label: "Read Summary Source",
++    description: "Read the actual prose and source hash before writing a summary. Chapter hashes include scene order. Truncated text requires reading the listed source files; a hash is not proof of reading or factual accuracy.",
++    parameters: Type.Object({ chapter: Type.Integer({ minimum: 1 }), scene: Type.Optional(Type.Integer({ minimum: 1 })) }),
++    execute: async (_id: string, params: any) => {
++      const source = summarySource(params.chapter, params.scene);
++      const output = truncateHead(source.body);
++      return { content: [{ type: "text", text: JSON.stringify({ ...source, body: output.content, truncated: output.truncated, review: "not performed" }) }] };
++    }
++  });
+   pi.registerTool({
+-    name: "summary_generate",
+-    label: "Generate Summary",
+-    description: "Store a new summary for a scene/chapter.",
++    name: "summary_generate", label: "Store Source-Bound Summary",
++    description: "Store a summary against the exact source hash returned by summary_source. Rejects changed prose or dependencies. Does not certify factual accuracy.",
+     parameters: Type.Object({
+-      chapter: Type.Number(),
+-      scene: Type.Optional(Type.Number()),
+-      summaryText: Type.String()
++      chapter: Type.Integer({ minimum: 1 }), scene: Type.Optional(Type.Integer({ minimum: 1 })),
++      summaryText: Type.String({ minLength: 1, maxLength: 20000 }), expectedSourceHash: Hash,
++      dependencies: Type.Optional(FileDependenciesSchema)
+     }),
+     execute: async (_id: string, params: any) => {
+-      const p = getProject();
+-      if (!p) return { content: [{ type: "text", text: "Project not found." }] };
+-      
+-      const sumDir = path.join(p.rootPath, "summaries");
+-      let targetFile = "";
+-      if (params.scene != null) {
+-         ensureDir(path.join(sumDir, "scenes"));
+-         targetFile = path.join(sumDir, "scenes", `${String(params.chapter).padStart(2, "0")}-${String(params.scene).padStart(2, "0")}.md`);
+-      } else {
+-         ensureDir(path.join(sumDir, "chapters"));
+-         targetFile = path.join(sumDir, "chapters", `${String(params.chapter).padStart(2, "0")}.md`);
+-      }
+-      
+-      let body = "";
+-      if (params.scene != null) {
+-        const sceneKey = `${String(params.chapter).padStart(2, "0")}-${String(params.scene).padStart(2, "0")}`;
+-        const sceneEntry = p.scenes.get(sceneKey);
+-        if (!sceneEntry) {
+-          return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} not found. Cannot generate summary for a non-existent scene.` }] };
+-        } else {
+-          const raw = readText(sceneEntry.filePath);
+-          const parsed = parseFrontmatter(raw);
+-          body = parsed.body;
+-        }
+-      } else {
+-        body = chapterSource(p, params.chapter);
+-        if (!body) throw new Error(`Chapter ${params.chapter} has no drafted scenes.`);
+-      }
+-      if (!params.summaryText.trim()) throw new Error("Summary text cannot be empty.");
+-
+-      const hash = generateHash(body);
+-      const content = `---\nhash: ${hash}\n---\n${params.summaryText}`;
+-      writeText(targetFile, content);
+-
+-      return { content: [{ type: "text", text: `Summary stored: ${targetFile}` }] };
++      const p = getProject(); if (!p) throw new Error("No project loaded.");
++      const key = params.scene == null ? String(params.chapter).padStart(2, "0") : sceneKey(params.chapter, params.scene);
++      const file = projectPath(p.rootPath, `summaries/${params.scene == null ? "chapters" : "scenes"}/${key}.md`);
++      await withFileMutationQueue(file, async () => {
++        const source = summarySource(params.chapter, params.scene);
++        if (source.expectedSourceHash !== params.expectedSourceHash) throw new Error("Summary source changed. Read summary_source again and revise the summary.");
++        if (!params.summaryText.trim()) throw new Error("Summary text cannot be empty.");
++        const dependencies = validateFileDependencies(p.rootPath, params.dependencies ?? []);
++        if (dependencies.some(d => projectPath(p.rootPath, d.path) === file)) throw new Error("A summary cannot depend on itself.");
++        if (staleFileDependencies(p.rootPath, dependencies).length) throw new Error("Summary dependency changed or is missing.");
++        writeText(file, buildFrontmatter({ summary_schema: 1, hash: source.expectedSourceHash, dependencies, review: "unreviewed" }) + params.summaryText);
++      });
++      return { content: [{ type: "text", text: `Summary stored: ${file}. Source-bound, not fact-checked.` }] };
+     }
+   });
+ 
+@@ -375,7 +374,7 @@ export default function novelWriteExtension(pi: any) {
+           }
+           const { meta } = parseFrontmatter(readText(sumFile));
+           const { body } = parseFrontmatter(readText(scene.filePath));
+-          if (generateHash(body) !== meta.hash) {
++          if (!summaryCurrent(p.rootPath, meta, body)) {
+               stale.push(key + " (stale)");
+           }
+       }
+@@ -404,7 +403,7 @@ export default function novelWriteExtension(pi: any) {
+         const chFile = path.join(p.rootPath, "summaries", "chapters", `${String(chNum).padStart(2, "0")}.md`);
+         if (!fs.existsSync(chFile)) {
+           stale.push(`chapter-${String(chNum).padStart(2, "0")} (missing chapter summary)`);
+-        } else if (parseFrontmatter(readText(chFile)).meta.hash !== generateHash(chapterSource(p, chNum))) {
++        } else if (!summaryCurrent(p.rootPath, parseFrontmatter(readText(chFile)).meta, chapterSource(p, chNum))) {
+           stale.push(`chapter-${String(chNum).padStart(2, "0")} (stale chapter summary)`);
+         }
+       }
+@@ -454,7 +453,7 @@ export default function novelWriteExtension(pi: any) {
+           return;
+         }
+         pi.sendUserMessage(
+-          `Generate a chapter-level summary for Chapter ${chapterNum}. Review the existing scene summaries for that chapter, then write a cohesive summary and store it with summary_generate (chapter: ${chapterNum}, no scene parameter).`,
++          `Generate a chapter-level summary for Chapter ${chapterNum}. Read summary_source for this chapter and its listed prose, then write a cohesive summary and store its expectedSourceHash with summary_generate (chapter: ${chapterNum}, no scene parameter).`,
+           { deliverAs: "followUp" }
+         );
+         return;
+@@ -470,7 +469,7 @@ export default function novelWriteExtension(pi: any) {
+           return;
+         }
+         pi.sendUserMessage(
+-          `Generate a summary for Chapter ${chapterNum}, Scene ${sceneNum}. Read the scene prose with continue_writing, write a concise summary, then store it with summary_generate (chapter: ${chapterNum}, scene: ${sceneNum}).`,
++          `Generate a summary for Chapter ${chapterNum}, Scene ${sceneNum}. Read summary_source, write a concise summary from the actual prose, then store its expectedSourceHash with summary_generate (chapter: ${chapterNum}, scene: ${sceneNum}).`,
+           { deliverAs: "followUp" }
+         );
+         return;
+@@ -508,7 +507,7 @@ export default function novelWriteExtension(pi: any) {
+         }
+         const { meta } = parseFrontmatter(readText(sumFile));
+         const { body } = parseFrontmatter(readText(scene.filePath));
+-        if (generateHash(body) !== meta.hash) {
++        if (!summaryCurrent(p.rootPath, meta, body)) {
+           staleList.push(`${key} (stale)`);
+         }
+       }
+@@ -537,7 +536,7 @@ export default function novelWriteExtension(pi: any) {
+         const chFile = path.join(p.rootPath, "summaries", "chapters", `${String(chNum).padStart(2, "0")}.md`);
+         if (!fs.existsSync(chFile)) {
+           staleList.push(`chapter-${String(chNum).padStart(2, "0")} (missing chapter summary)`);
+-        } else if (parseFrontmatter(readText(chFile)).meta.hash !== generateHash(chapterSource(p, chNum))) {
++        } else if (!summaryCurrent(p.rootPath, parseFrontmatter(readText(chFile)).meta, chapterSource(p, chNum))) {
+           staleList.push(`chapter-${String(chNum).padStart(2, "0")} (stale chapter summary)`);
+         }
+       }
+@@ -578,7 +577,7 @@ export default function novelWriteExtension(pi: any) {
+         return `- ${item}`;
+       }).join("\n");
+       pi.sendUserMessage(
+-        `Generate summaries for these ${count} items, calling summary_generate for each in order:\n${aiLines}`,
++        `For each item read summary_source and its complete prose, then call summary_generate with that expectedSourceHash. Generate summaries for these ${count} items in order:\n${aiLines}`,
+         { deliverAs: "followUp" }
+       );
+     }
+diff --git a/skills/autonomous-novel/SKILL.md b/skills/autonomous-novel/SKILL.md
+index 11f6c8d..788ad36 100644
+--- a/skills/autonomous-novel/SKILL.md
++++ b/skills/autonomous-novel/SKILL.md
+@@ -101,7 +101,9 @@ The extension owns `.pi/novel-run.json`; do not edit that file directly.
+ After interruption or compaction, recover from saved evidence, not remembered
+ intent. An outdated summary is not canon. Recheck changed dependencies locally.
+ Read existing summaries with `summary_read` or ordinary read-only access; write
+-them only through `summary_generate`. Freshness is mechanical, not factual. Use
++them only through `summary_generate`. First read `summary_source` and pass its
++`expectedSourceHash`; a stale source must be reread rather than stamped current.
++Freshness is mechanical, not factual. Use
+ `context_summary` to inspect selected/omitted bible entries and summaries. Bounded
+ character evidence is not proof of knowledge and cannot remove future material
+ already present elsewhere in the conversation.
+diff --git a/tests/extension-integration.test.ts b/tests/extension-integration.test.ts
+index 56d619e..33e3539 100644
+--- a/tests/extension-integration.test.ts
++++ b/tests/extension-integration.test.ts
+@@ -20,7 +20,8 @@ for (const format of ['novel', 'novella', 'short-story', 'flash-fiction'] as con
+       assert.ok(getProject());
+       await host.call('novel_scene_create', { chapter: 1, pov: 'Ilyen' }, fixture.ctx);
+       await host.call('novel_scene_write', { chapter: 1, scene: 1, content: 'Snow collected on the empty chair.' }, fixture.ctx);
+-      await host.call('summary_generate', { chapter: 1, scene: 1, summaryText: 'Snow is on the chair.' }, fixture.ctx);
++      const source = JSON.parse((await host.call('summary_source', { chapter: 1, scene: 1 }, fixture.ctx)).content[0].text);
++      await host.call('summary_generate', { chapter: 1, scene: 1, expectedSourceHash: source.expectedSourceHash, summaryText: 'Snow is on the chair.' }, fixture.ctx);
+       const result = await host.call('summary_read', { chapter: 1, scene: 1 }, fixture.ctx);
+       assert.match(result.content[0].text, /Freshness: current/);
+       await host.call('novel_scene_write', { chapter: 1, scene: 1, content: 'The chair was gone.' }, fixture.ctx);
+diff --git a/tests/summaries.test.ts b/tests/summaries.test.ts
+new file mode 100644
+index 0000000..206e9d4
+--- /dev/null
++++ b/tests/summaries.test.ts
+@@ -0,0 +1,53 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import path from 'node:path';
++import core, { getProject } from '../extensions/novel-core.ts';
++import write from '../extensions/novel-write.ts';
++import { hashText } from '../extensions/llgf/version.ts';
++import { summaryCurrent } from '../extensions/llgf/summaries.ts';
++import { projectFixture, fakePi } from './helpers.ts';
++async function setup() {
++  const f = projectFixture(); const h = fakePi(); core(h.api); write(h.api); await h.event('session_start', {}, f.ctx);
++  await h.call('novel_scene_create', { chapter: 1 }, f.ctx);
++  await h.call('novel_scene_write', { chapter: 1, scene: 1, content: 'The bridge had fallen.' }, f.ctx);
++  const source = JSON.parse((await h.call('summary_source', { chapter: 1, scene: 1 }, f.ctx)).content[0].text);
++  return { ...f, h, source };
++}
++test('summary cannot stamp an old reading with a new source hash', async () => {
++  const f = await setup(); try {
++    await f.h.call('novel_scene_write', { chapter: 1, scene: 1, content: 'The bridge remained intact.' }, f.ctx);
++    await assert.rejects(f.h.call('summary_generate', { chapter: 1, scene: 1, expectedSourceHash: f.source.expectedSourceHash, summaryText: 'The bridge fell.' }, f.ctx), /source changed/);
++    assert.equal(fs.existsSync(path.join(f.root, 'summaries/scenes/01-01.md')), false);
++  } finally { f.dispose(); }
++});
++test('summary freshness follows upstream dependencies without changing its own prose', async () => {
++  const f = await setup(); try {
++    fs.mkdirSync(path.join(f.root, 'continuity')); fs.writeFileSync(path.join(f.root, 'continuity/facts.json'), '{}');
++    await f.h.call('summary_generate', { chapter: 1, scene: 1, expectedSourceHash: f.source.expectedSourceHash, summaryText: 'The bridge fell.', dependencies: [{ path: 'continuity/facts.json', hash: hashText('{}') }] }, f.ctx);
++    assert.match((await f.h.call('summary_read', { chapter: 1, scene: 1 }, f.ctx)).content[0].text, /Freshness: current/);
++    fs.writeFileSync(path.join(f.root, 'continuity/facts.json'), '{"bridge":"disputed"}');
++    assert.match((await f.h.call('summary_read', { chapter: 1, scene: 1 }, f.ctx)).content[0].text, /Freshness: stale/);
++  } finally { f.dispose(); }
++});
++test('legacy hash-current summaries remain readable but malformed dependencies are not fresh', () => {
++  const f = projectFixture(); try {
++    assert.equal(summaryCurrent(f.root, { hash: hashText('Text') }, 'Text'), true);
++    assert.equal(summaryCurrent(f.root, { hash: hashText('Text'), dependencies: 'invalid' }, 'Text'), false);
++    assert.equal(summaryCurrent(f.root, { hash: hashText('Text'), dependencies: [{ path: '../secret.md', hash: hashText('') }] }, 'Text'), false);
++  } finally { f.dispose(); }
++});
++test('chapter source binds actual reading order, not only individual body hashes', async () => {
++  const f = await setup(); try {
++    await f.h.call('novel_scene_status', { chapter: 1, scene: 1, status: 'draft' }, f.ctx);
++    await f.h.call('novel_scene_create', { chapter: 1 }, f.ctx);
++    await f.h.call('novel_scene_write', { chapter: 1, scene: 2, content: 'They crossed by boat.' }, f.ctx);
++    await f.h.call('novel_scene_status', { chapter: 1, scene: 2, status: 'draft' }, f.ctx);
++    const first = JSON.parse((await f.h.call('summary_source', { chapter: 1 }, f.ctx)).content[0].text);
++    const scene = getProject()!.scenes.get('01-02')!;
++    const raw = fs.readFileSync(scene.filePath, 'utf8');
++    fs.writeFileSync(scene.filePath, raw.replace('---\n', '---\norder: 0\n'));
++    await f.h.event('tool_call', {}, f.ctx);
++    await assert.rejects(f.h.call('summary_generate', { chapter: 1, expectedSourceHash: first.expectedSourceHash, summaryText: 'The bridge fell, then they crossed.' }, f.ctx), /source changed/);
++  } finally { f.dispose(); }
++});
