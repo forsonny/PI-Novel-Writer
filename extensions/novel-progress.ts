@@ -692,7 +692,7 @@ export default function novelProgressExtension(pi: any) {
       const project = getProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
       const configPath = path.join(project.rootPath, "project.json");
-      await withFileMutationQueue(configPath, () => {
+      await withFileMutationQueue(configPath, async () => {
         const config = JSON.parse(readText(configPath));
         if (params.daily !== undefined) config.dailyWordGoal = params.daily;
         if (params.total !== undefined) config.targetWordCount = params.total;

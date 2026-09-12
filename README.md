@@ -473,3 +473,10 @@ Improvements to skills, prompts, and extensions are welcome.
 ## License
 
 MIT
+
+## Development verification
+
+The development host is pinned to Pi 0.85.1. Use Node 22.19.0 or later, then
+`npm ci --ignore-scripts` and `npm run check`. Checks parse every TypeScript file,
+run strict typechecking, and exercise the real extension registrations against a
+non-model test host. A passing engineering suite is not a literary benchmark.

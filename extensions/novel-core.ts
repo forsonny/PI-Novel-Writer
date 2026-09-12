@@ -285,7 +285,7 @@ export function saveScene(filePath: string, content: string): void {
 export async function replacePassage(chapter: number, scene: number, original: string, replacement: string) {
   const entry = refreshProject()?.scenes.get(sceneKey(chapter, scene));
   if (!entry) throw new Error(`Scene ${chapter}.${scene} not found.`);
-  return withFileMutationQueue(entry.filePath, () => {
+  return withFileMutationQueue(entry.filePath, async () => {
     const raw = readText(entry.filePath);
     const { body } = parseFrontmatter(raw);
     if (!original || body.split(original).length !== 2) {
@@ -985,7 +985,7 @@ export default function novelCoreExtension(pi: any) {
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} not found.` }] };
 
-      await withFileMutationQueue(scene.filePath, () => {
+      await withFileMutationQueue(scene.filePath, async () => {
         const existing = readText(scene.filePath);
         const { body } = parseFrontmatter(existing);
         saveScene(scene.filePath, existing.slice(0, existing.length - body.length) + params.content);
@@ -1011,7 +1011,8 @@ export default function novelCoreExtension(pi: any) {
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
 
-      return withFileMutationQueue(scene.filePath, () => {
+      const activeProject = project;
+      return withFileMutationQueue(scene.filePath, async () => {
       const content = readText(scene.filePath);
       const { meta, body } = parseFrontmatter(content);
       const lines = body.split("\n");
@@ -1025,11 +1026,11 @@ export default function novelCoreExtension(pi: any) {
       // IDs stay stable, so summaries, plans and knowledge references to OTHER
       // scenes need no renumbering. Only reading order changes.
       let maxScene = 0;
-      for (const [_k, s] of project.scenes) {
+      for (const [_k, s] of activeProject.scenes) {
         if (s.chapter === params.chapter && s.scene > maxScene) maxScene = s.scene;
       }
       const newNum = maxScene + 1;
-      const siblings = orderedScenes(project!).filter(s => s.chapter === params.chapter);
+      const siblings = orderedScenes(activeProject).filter(s => s.chapter === params.chapter);
       const next = siblings[siblings.findIndex(s => s.scene === params.scene) + 1];
       const position = meta.order ?? params.scene;
       const order = next ? (position + (next.order ?? next.scene)) / 2 : position + 1;
@@ -1043,7 +1044,7 @@ export default function novelCoreExtension(pi: any) {
       saveScene(scene.filePath, buildFrontmatter(meta) + firstHalf);
 
       const newKey = sceneKey(params.chapter, newNum);
-      project!.scenes.set(newKey, { ...scene, scene: newNum, order, title: newMeta.title, filePath: newPath } as SceneMetadata);
+      activeProject.scenes.set(newKey, { ...scene, scene: newNum, order, title: newMeta.title, filePath: newPath } as SceneMetadata);
 
       return { content: [{ type: "text", text: `Split at line ${params.splitAtLine}. New scene: Ch${params.chapter} Sc${newNum}, immediately after Sc${params.scene} in reading order. Other scene IDs are unchanged. Refresh both summaries and their affected scene cards/continuity.` }] };
       });
@@ -1108,21 +1109,22 @@ export default function novelCoreExtension(pi: any) {
     }),
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const activeProject = project;
       const previewMode = params.preview !== false;
       const results: string[] = [];
       let totalReplacements = 0;
 
       const scanDirs = ["manuscript", "bible", "outline", "summaries"];
       for (const dir of scanDirs) {
-        const dirPath = path.join(project.rootPath, dir);
+        const dirPath = path.join(activeProject.rootPath, dir);
         if (!fs.existsSync(dirPath)) continue;
         const files = getAllMdFiles(dirPath);
         for (const filePath of files) {
-          await withFileMutationQueue(filePath, () => {
+          await withFileMutationQueue(filePath, async () => {
           const content = readText(filePath);
           const count = (content.match(new RegExp(escapeRegex(params.find), "g")) || []).length;
           if (count > 0) {
-            const rel = path.relative(project.rootPath, filePath);
+            const rel = path.relative(activeProject.rootPath, filePath);
             results.push(`${rel}: ${count} occurrence(s)`);
             totalReplacements += count;
             if (!previewMode) {
@@ -1153,6 +1155,7 @@ export default function novelCoreExtension(pi: any) {
     }),
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const activeProject = project;
       const previewMode = params.preview !== false;
       const pattern = new RegExp(`\\b${escapeRegex(params.oldName)}\\b`, "g");
       const results: string[] = [];
@@ -1160,15 +1163,15 @@ export default function novelCoreExtension(pi: any) {
 
       const scanDirs = ["manuscript", "bible", "outline", "summaries", "continuity", "timeline"];
       for (const dir of scanDirs) {
-        const dirPath = path.join(project.rootPath, dir);
+        const dirPath = path.join(activeProject.rootPath, dir);
         if (!fs.existsSync(dirPath)) continue;
         const files = getAllFiles(dirPath);
         for (const filePath of files) {
-          await withFileMutationQueue(filePath, () => {
+          await withFileMutationQueue(filePath, async () => {
           const content = readText(filePath);
           const matches = content.match(pattern);
           if (matches && matches.length > 0) {
-            const rel = path.relative(project.rootPath, filePath);
+            const rel = path.relative(activeProject.rootPath, filePath);
             results.push(`${rel}: ${matches.length} occurrence(s)`);
             total += matches.length;
             if (!previewMode) {

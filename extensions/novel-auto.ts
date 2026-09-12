@@ -11,6 +11,7 @@ import { readText, writeText } from "./utils/platform.ts";
 
 const phases = ["brainstorm", "outline", "draft", "review", "complete"] as const;
 type Phase = typeof phases[number];
+const findingStatuses = ["supported", "uncertain", "contradicted", "not-applicable"] as const;
 const aspects = ["causality", "perspective", "progression", "continuity", "emotion", "language"] as const;
 const runFile = ".pi/novel-run.json";
 const workflowPath = fileURLToPath(new URL("../skills/autonomous-novel/SKILL.md", import.meta.url));
@@ -341,7 +342,7 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
       reconstruction: Type.String({ minLength: 1 }),
       findings: Type.Array(Type.Object({
         aspect: StringEnum(aspects),
-        status: StringEnum(["supported", "uncertain", "contradicted", "not-applicable"]),
+        status: StringEnum(findingStatuses),
         quote: Type.String(), note: Type.String({ minLength: 1 }), blocking: Type.Boolean()
       }), { minItems: 6, maxItems: 6 })
     }),
