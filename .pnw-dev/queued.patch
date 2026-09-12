@@ -1,0 +1,18 @@
+PNW-BASE: 50b9c721b7ebc9b5be1c47d5b03c9654df02559b
+PNW-MESSAGE: build: generate dependency locks on the verification runner
+
+diff --git a/scripts/apply-reviewed-change.mjs b/scripts/apply-reviewed-change.mjs
+index cd3e860..1cea7e1 100644
+--- a/scripts/apply-reviewed-change.mjs
++++ b/scripts/apply-reviewed-change.mjs
+@@ -16,6 +16,10 @@ if (fs.existsSync(file)) {
+   git('apply', '--check', '--index', '/tmp/pnw-reviewed.patch');
+   git('apply', '--index', '/tmp/pnw-reviewed.patch');
+   git('rm', '--', file);
++  if (git('diff', '--cached', '--name-only').split('\n').includes('package.json')) {
++    execFileSync('npm', ['install', '--package-lock-only', '--ignore-scripts'], { stdio: 'inherit' });
++    git('add', '--', 'package-lock.json');
++  }
+   fs.writeFileSync('/tmp/pnw-reviewed-message', match[2]);
+   git('diff', '--cached', '--check');
+   console.log(git('diff', '--cached', '--stat'));
