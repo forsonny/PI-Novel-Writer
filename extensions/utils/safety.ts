@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { requireId } from '../llgf/version.ts';
 import path from 'node:path';
 
 function inside(root: string, candidate: string): boolean {
@@ -53,6 +54,7 @@ export function sceneMetadata(meta: Record<string, unknown>, derived: { chapter:
   if (!['outline', 'draft', 'revised', 'polished', 'final'].includes(status as string)) throw new Error('Invalid scene status');
   if (meta.order !== undefined && (typeof meta.order !== 'number' || !Number.isFinite(meta.order))) throw new Error('Invalid scene order');
   return {
+    ...(meta.id === undefined ? {} : { id: requireId(text('id')) }),
     title: text('title'), pov: text('pov'), location: text('location'), timeline: text('timeline'), summary: text('summary'),
     characters_present: list('characters_present'), plot_threads: list('plot_threads'), tags: list('tags'),
     status: status as 'outline' | 'draft' | 'revised' | 'polished' | 'final', order: meta.order as number | undefined,

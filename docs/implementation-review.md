@@ -33,3 +33,9 @@ Verification: `npm run check` passes, including 18 tests. `npm ci --dry-run --of
 Scope: preserve all 56 Chapter 5 distinctions, their 48 Appendix B families, separate rubric scales, explicit method/scope and source cause-family namespaces, and named R0-R10 passes. No detector or automatic style judgment is claimed. Source differences and implementation decisions are documented instead of silently reconciled.
 
 Verification: strict typecheck and 21 regression tests pass. Mapping checks specifically prevent loss of character-reset/focalization and fragmentation/caricature/copying distinctions; invalid severity values fail without rescaling. This step does not change generated prose.
+
+## Change 06: Stable scene identities and source versions
+
+Scope: assign immutable UUIDs on new scene creation, retain IDs across moves, record split/merge lineage, expose current prose hashes, and support expected-source checks. Existing files are not migrated on read. Canonical JSON hashing rejects non-finite, cyclic, sparse, reserved-key and otherwise lossy values. Numeric scene addresses remain compatibility positions.
+
+Verification: strict checking and 24 tests pass. Real tool tests cover move/split ID preservation, duplicate IDs, rejected stale writes, no-change legacy scans and merge-self rejection. Review added adjacency enforcement to avoid merging unrelated scenes under a misleading tool description. Legacy callers may omit expected hashes; managed literary acceptance will require them at its gateway.
