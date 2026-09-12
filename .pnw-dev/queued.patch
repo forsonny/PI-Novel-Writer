@@ -1,0 +1,343 @@
+PNW-BASE: e057b84812764a2336294e7b1f2ca1f9e8afd937
+PNW-MESSAGE: fix: validate scene paths and prevent metadata overrides
+
+diff --git a/.gitignore b/.gitignore
+index 120caba..408650f 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -3,6 +3,5 @@ node_modules/
+ *.log
+ .DS_Store
+ Thumbs.db
+-tests/
+ test-runs/
+ .pi-metacore-project.json
+diff --git a/docs/implementation-review.md b/docs/implementation-review.md
+index 998d5c6..129b295 100644
+--- a/docs/implementation-review.md
++++ b/docs/implementation-review.md
+@@ -9,3 +9,9 @@ Changes are implemented and checked sequentially on feat/beyond-fluency-reviewed
+ Add syntax checks and initial regression tests before changing runtime behavior. Tests cover Unicode/newline round trips, normalized entity lookup, and declared entrypoint existence. CI uses an explicitly pinned Pi development host. Production installation and manuscript files are not changed by this step.
+ 
+ Review: behavior-neutral test infrastructure. CI outcome must be inspected before the next change.
++
++## Change 02: Trusted scene paths and portable file handling
++
++Scope: allowlist executable scene metadata; derive paths/chapter addresses from the scan; reject duplicate scene addresses; reject project escapes and dangling/outside symlink ancestors before reading scenes; protect the prose backup path. Preserve unknown author metadata on disk. Use unique write temporaries and portable filenames; do not make case-sensitive paths equal on Linux.
++
++Verification: 9 local tests passed with the pinned Pi host available. Tests include metadata path override, prototype keys, prefix tricks, outside/dangling symlinks, duplicate addresses, root aliases, and Unicode. Diff reviewed. A root-symlink canonical-path round-trip issue was found during review and repaired before acceptance. This is filesystem containment, not an OS sandbox against concurrent hostile directory replacement.
+diff --git a/extensions/novel-core.ts b/extensions/novel-core.ts
+index 83bcd48..bcde464 100644
+--- a/extensions/novel-core.ts
++++ b/extensions/novel-core.ts
+@@ -3,6 +3,7 @@
+ // This extension MUST be loaded first (listed first in package.json pi.extensions)
+ 
+ import path from "node:path";
++import { projectPath, positiveInteger, sceneMetadata } from "./utils/safety.ts";
+ import fs from "node:fs";
+ import { fileURLToPath } from "node:url";
+ import { createHash } from "node:crypto";
+@@ -16,7 +17,7 @@ import {
+ 
+ // ─── Types ────────────────────────────────────────────────────────────────────
+ 
+-interface ProjectConfig {
++export interface ProjectConfig {
+   title: string;
+   author: string;
+   genre: string;
+@@ -48,7 +49,7 @@ interface ProjectConfig {
+   };
+ }
+ 
+-interface SceneMetadata {
++export interface SceneMetadata {
+   chapter: number;
+   scene: number;
+   order?: number;
+@@ -64,7 +65,7 @@ interface SceneMetadata {
+   filePath: string;
+ }
+ 
+-interface NovelProject {
++export interface NovelProject {
+   config: ProjectConfig;
+   rootPath: string;
+   scenes: Map<string, SceneMetadata>;
+@@ -107,7 +108,7 @@ export function parseFrontmatter(content: string): { meta: Record<string, any>;
+   const rawYaml = match[1];
+   const body = content.slice(match[0].length);
+   // Simple YAML parser for our known fields
+-  const meta: Record<string, any> = {};
++  const meta: Record<string, any> = Object.create(null);
+   let currentKey = "";
+   let inArray = false;
+   for (const line of rawYaml.split("\n")) {
+@@ -195,51 +196,54 @@ function ensureDir(dirPath: string): void {
+   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+ }
+ 
+-function scanScenes(rootPath: string, format: string): Map<string, SceneMetadata> {
++export function scanScenes(rootPath: string, format: string): Map<string, SceneMetadata> {
+   const scenes = new Map<string, SceneMetadata>();
+-  const msDir = path.join(rootPath, "manuscript");
++  const msDir = projectPath(rootPath, "manuscript");
+   if (!fs.existsSync(msDir)) return scenes;
+ 
+   if (format === "flash-fiction") {
+-    const storyPath = path.join(msDir, "story.md");
++    const storyPath = projectPath(rootPath, path.join(msDir, "story.md"));
+     if (fs.existsSync(storyPath)) {
+       const content = readText(storyPath);
+       const { meta } = parseFrontmatter(content);
+-      scenes.set("01-01", { chapter: 1, scene: 1, filePath: storyPath, ...meta } as SceneMetadata);
++      scenes.set("01-01", sceneMetadata(meta, { chapter: 1, scene: 1, filePath: storyPath }));
+     }
+     return scenes;
+   }
+ 
+   if (format === "short-story") {
+-    const scenesDir = path.join(msDir, "scenes");
++    const scenesDir = projectPath(rootPath, path.join(msDir, "scenes"));
+     if (!fs.existsSync(scenesDir)) return scenes;
+     for (const file of fs.readdirSync(scenesDir).sort()) {
+       if (!file.endsWith(".md")) continue;
+-      const filePath = path.join(scenesDir, file);
++      const filePath = projectPath(rootPath, path.join(scenesDir, file));
+       const content = readText(filePath);
+       const { meta } = parseFrontmatter(content);
+-      const key = sceneKey(1, meta.scene || 1);
+-      scenes.set(key, { chapter: 1, filePath, ...meta } as SceneMetadata);
++      const scNum = positiveInteger(meta.scene ?? (parseInt(file.replace(/\D/g, ""), 10) || 1), "Scene");
++      const key = sceneKey(1, scNum);
++      if (scenes.has(key)) throw new Error(`Duplicate scene address ${key}`);
++      scenes.set(key, sceneMetadata(meta, { chapter: 1, scene: scNum, filePath }));
+     }
+     return scenes;
+   }
+ 
+   // novel / novella
+-  const chapDir = path.join(msDir, "chapters");
++  const chapDir = projectPath(rootPath, path.join(msDir, "chapters"));
+   if (!fs.existsSync(chapDir)) return scenes;
+   for (const chDir of fs.readdirSync(chapDir).sort()) {
+-    const chPath = path.join(chapDir, chDir);
++    const chPath = projectPath(rootPath, path.join(chapDir, chDir));
+     if (!fs.statSync(chPath).isDirectory()) continue;
+     const chNum = parseInt(chDir.split("-")[0], 10);
+     if (isNaN(chNum)) continue;
+     for (const file of fs.readdirSync(chPath).sort()) {
+       if (!file.endsWith(".md")) continue;
+-      const filePath = path.join(chPath, file);
++      const filePath = projectPath(rootPath, path.join(chPath, file));
+       const content = readText(filePath);
+       const { meta } = parseFrontmatter(content);
+-      const scNum = meta.scene || parseInt(file.replace(/\D/g, ""), 10) || 1;
++      const scNum = positiveInteger(meta.scene ?? (parseInt(file.replace(/\D/g, ""), 10) || 1), "Scene");
+       const key = sceneKey(chNum, scNum);
+-      scenes.set(key, { chapter: chNum, scene: scNum, filePath, ...meta } as SceneMetadata);
++      if (scenes.has(key)) throw new Error(`Duplicate scene address ${key}`);
++      scenes.set(key, sceneMetadata(meta, { chapter: chNum, scene: scNum, filePath }));
+     }
+   }
+   return scenes;
+@@ -267,9 +271,10 @@ export function refreshProject(): NovelProject | null {
+ export function saveScene(filePath: string, content: string): void {
+   const p = getProject();
+   if (!p) throw new Error("No project loaded.");
++  filePath = projectPath(p.rootPath, filePath);
+   const original = readText(filePath);
+   if (original === content) return;
+-  const backupDir = path.join(p.rootPath, "notes", "revisions");
++  const backupDir = projectPath(p.rootPath, "notes/revisions");
+   ensureDir(backupDir);
+   const digest = createHash("sha256").update(original).digest("hex");
+   const backup = path.join(backupDir, `${digest}.md`);
+diff --git a/extensions/utils/platform.ts b/extensions/utils/platform.ts
+index 367fbf6..899f225 100644
+--- a/extensions/utils/platform.ts
++++ b/extensions/utils/platform.ts
+@@ -1,5 +1,6 @@
+ import path from "node:path";
+ import fs from "node:fs";
++import { randomUUID } from "node:crypto";
+ 
+ export const IS_WINDOWS = process.platform === "win32";
+ 
+@@ -11,11 +12,11 @@ export function readText(filePath: string): string {
+ // Write LF-only (never CRLF), with EBUSY retry for Windows file locking
+ export function writeText(filePath: string, content: string, maxRetries = 3): void {
+   ensureDir(path.dirname(filePath));
+-  const tmpPath = filePath + ".tmp";
++  const tmpPath = `${filePath}.${randomUUID()}.tmp`;
+   const data = content.replace(/\r\n/g, "\n");
+   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+     try {
+-      fs.writeFileSync(tmpPath, data, "utf-8");
++      fs.writeFileSync(tmpPath, data, { encoding: "utf-8", flag: attempt === 0 ? "wx" : "w", mode: 0o600 });
+       fs.renameSync(tmpPath, filePath); // atomic write
+       return;
+     } catch (err: any) {
+@@ -38,7 +39,8 @@ export function resolvePath(projectRoot: string, storedPath: string): string {
+ 
+ // Case-insensitive path comparison (Windows NTFS is case-insensitive)
+ export function pathsEqual(a: string, b: string): boolean {
+-  return path.normalize(a).toLowerCase() === path.normalize(b).toLowerCase();
++  return IS_WINDOWS ? path.normalize(a).toLowerCase() === path.normalize(b).toLowerCase()
++    : path.normalize(a) === path.normalize(b);
+ }
+ 
+ // Normalize entity names for Map keys (always lowercase)
+@@ -52,13 +54,13 @@ const WIN_ILLEGAL  = /[<>:"/\\|?*\x00-\x1f]/;
+ 
+ export function toSafeFilename(name: string): string {
+   let safe = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-_]/g, "");
+-  if (IS_WINDOWS && WIN_RESERVED.test(safe)) safe = "x-" + safe;
++  if (WIN_RESERVED.test(safe)) safe = "x-" + safe;
+   return safe || "untitled";
+ }
+ 
+ export function validateFilename(name: string): { valid: boolean; reason?: string } {
+   if (!name?.trim()) return { valid: false, reason: "Name cannot be empty" };
+-  if (IS_WINDOWS) {
++  { // Portable names remain valid when a project moves between operating systems.
+     if (WIN_RESERVED.test(name)) return { valid: false, reason: `"${name}" is a reserved Windows filename` };
+     if (WIN_ILLEGAL.test(name)) return { valid: false, reason: "Name contains characters not allowed on Windows" };
+     if (name.endsWith(".") || name.endsWith(" ")) return { valid: false, reason: "Name cannot end with period or space on Windows" };
+diff --git a/extensions/utils/safety.ts b/extensions/utils/safety.ts
+new file mode 100644
+index 0000000..0f0968e
+--- /dev/null
++++ b/extensions/utils/safety.ts
+@@ -0,0 +1,61 @@
++import fs from 'node:fs';
++import path from 'node:path';
++
++function inside(root: string, candidate: string): boolean {
++  const relative = path.relative(root, candidate);
++  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
++}
++
++/** Check both lexical containment and every existing ancestor, including symlinks.
++ * Not an OS sandbox against a process concurrently replacing directory entries.
++ */
++export function projectPath(rootPath: string, requested: string): string {
++  if (typeof requested !== 'string' || !requested || requested.includes('\0')) throw new Error('Invalid project path');
++  const root = fs.realpathSync(rootPath);
++  const candidate = path.resolve(rootPath, requested);
++  const lexicalRoot = path.resolve(rootPath);
++  if (!inside(lexicalRoot, candidate) && !inside(root, candidate)) throw new Error('Path escapes the project root');
++  const relative = path.relative(inside(lexicalRoot, candidate) ? lexicalRoot : root, candidate);
++  let current = root;
++  for (const part of relative.split(path.sep).filter(Boolean)) {
++    current = path.join(current, part);
++    try {
++      fs.lstatSync(current); // Also detects dangling symlinks.
++      if (!inside(root, fs.realpathSync(current))) throw new Error('Symlink escapes the project root');
++    } catch (error) {
++      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
++      // A dangling symlink must not be interpreted as an ordinary missing path.
++      try { if (fs.lstatSync(current).isSymbolicLink()) throw new Error('Dangling project symlink'); }
++      catch (nested) { if ((nested as NodeJS.ErrnoException).code !== 'ENOENT') throw nested; }
++    }
++  }
++  return path.join(root, relative);
++}
++
++export function positiveInteger(value: unknown, label: string): number {
++  if (!Number.isSafeInteger(value) || (value as number) < 1) throw new Error(`${label} must be a positive safe integer`);
++  return value as number;
++}
++
++/** Only known scene fields enter executable state. Unknown author fields remain on disk. */
++export function sceneMetadata(meta: Record<string, unknown>, derived: { chapter: number; scene: number; filePath: string }) {
++  const text = (key: string) => {
++    if (meta[key] === undefined) return '';
++    if (typeof meta[key] !== 'string') throw new Error(`Scene ${key} must be text`);
++    return meta[key] as string;
++  };
++  const list = (key: string): string[] => {
++    if (meta[key] === undefined) return [];
++    if (!Array.isArray(meta[key]) || !(meta[key] as unknown[]).every(v => typeof v === 'string')) throw new Error(`Scene ${key} must be a text array`);
++    return [...meta[key] as string[]];
++  };
++  const status = meta.status ?? 'outline';
++  if (!['outline', 'draft', 'revised', 'polished', 'final'].includes(status as string)) throw new Error('Invalid scene status');
++  if (meta.order !== undefined && (typeof meta.order !== 'number' || !Number.isFinite(meta.order))) throw new Error('Invalid scene order');
++  return {
++    title: text('title'), pov: text('pov'), location: text('location'), timeline: text('timeline'), summary: text('summary'),
++    characters_present: list('characters_present'), plot_threads: list('plot_threads'), tags: list('tags'),
++    status: status as 'outline' | 'draft' | 'revised' | 'polished' | 'final', order: meta.order as number | undefined,
++    chapter: positiveInteger(derived.chapter, 'Chapter'), scene: positiveInteger(derived.scene, 'Scene'), filePath: derived.filePath,
++  };
++}
+diff --git a/tests/path-safety.test.ts b/tests/path-safety.test.ts
+new file mode 100644
+index 0000000..cc57f2b
+--- /dev/null
++++ b/tests/path-safety.test.ts
+@@ -0,0 +1,63 @@
++import test from 'node:test';
++import assert from 'node:assert/strict';
++import fs from 'node:fs';
++import os from 'node:os';
++import path from 'node:path';
++import { projectPath, sceneMetadata } from '../extensions/utils/safety.ts';
++import { scanScenes, parseFrontmatter } from '../extensions/novel-core.ts';
++import { validateFilename, pathsEqual, toSafeFilename } from '../extensions/utils/platform.ts';
++
++function fixture(fn: (root: string, outside: string) => void) {
++  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnw-safety-'));
++  const root = path.join(dir, 'project'); fs.mkdirSync(root);
++  try { fn(root, dir); } finally { fs.rmSync(dir, { recursive: true, force: true }); }
++}
++
++test('rejects lexical escape, prefix tricks, NUL and escaping symlink ancestors', () => fixture((root, outside) => {
++  assert.throws(() => projectPath(root, '../other/file.md'), /escapes/);
++  assert.throws(() => projectPath(root, root + '-other/file.md'), /escapes/);
++  assert.throws(() => projectPath(root, '\0'), /Invalid/);
++  fs.symlinkSync(outside, path.join(root, 'escape'), 'dir');
++  assert.throws(() => projectPath(root, 'escape/not-yet-created/file.md'), /Symlink/);
++  fs.symlinkSync(path.join(outside, 'missing'), path.join(root, 'dangling'));
++  assert.throws(() => projectPath(root, 'dangling/file.md'), /Dangling/);
++  assert.equal(projectPath(root, 'notes/new.md'), path.join(root, 'notes/new.md'));
++}));
++
++test('metadata cannot override derived path, chapter or poison prototypes', () => {
++  const { meta } = parseFrontmatter('---\n__proto__: {"polluted":true}\nfilePath: "/tmp/elsewhere"\nchapter: 99\n---\n');
++  const safe = sceneMetadata(meta, { chapter: 1, scene: 2, filePath: '/project/real.md' });
++  assert.equal(safe.filePath, '/project/real.md'); assert.equal(safe.chapter, 1);
++  assert.equal(({} as any).polluted, undefined);
++  assert.throws(() => sceneMetadata({ characters_present: 'someone' }, { chapter: 1, scene: 1, filePath: 'x' }), /array/);
++});
++
++test('scanner preserves actual paths and rejects duplicate addresses', () => fixture(root => {
++  const dir = path.join(root, 'manuscript/scenes'); fs.mkdirSync(dir, { recursive: true });
++  fs.writeFileSync(path.join(dir, 'scene-01.md'), '---\nscene: 1\nfilePath: "/tmp/elsewhere"\n---\nSnow.');
++  assert.equal(scanScenes(root, 'short-story').get('01-01')?.filePath, path.join(dir, 'scene-01.md'));
++  fs.copyFileSync(path.join(dir, 'scene-01.md'), path.join(dir, 'duplicate.md'));
++  assert.throws(() => scanScenes(root, 'short-story'), /Duplicate/);
++}));
++
++test('scanner refuses outside prose before reading it', () => fixture((root, outside) => {
++  fs.mkdirSync(path.join(root, 'manuscript'));
++  fs.writeFileSync(path.join(outside, 'secret.md'), 'do not read');
++  fs.symlinkSync(path.join(outside, 'secret.md'), path.join(root, 'manuscript/story.md'));
++  assert.throws(() => scanScenes(root, 'flash-fiction'), /Symlink/);
++}));
++
++test('portable names and platform-correct case comparisons', () => {
++  assert.equal(validateFilename('../escape').valid, false);
++  assert.equal(validateFilename('con.md').valid, false);
++  assert.equal(toSafeFilename('CON'), 'x-con');
++  if (process.platform !== 'win32') assert.equal(pathsEqual('/A', '/a'), false);
++});
++
++// A project root itself may be a user-selected symlink. Returned canonical paths
++// must remain acceptable on later calls. Interior escapes remain forbidden.
++test('canonical paths work when the selected project root is a symlink', () => fixture((root, outside) => {
++  const alias = path.join(outside, 'alias'); fs.symlinkSync(root, alias, 'dir');
++  const resolved = projectPath(alias, 'scene.md');
++  assert.equal(projectPath(alias, resolved), resolved);
++}));
