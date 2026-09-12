@@ -13,7 +13,7 @@ This skill focuses on macro-level editing: story structure, pacing, theme develo
 
 ## Workflow
 
-1. **Estimate Cost**: Call `cost_estimate` with `operation="bulk-edit"` or `operation="analysis"` depending on whether you are just analyzing or rewriting.
+1. **Estimate Selected Text**: Call `cost_estimate` with the requested scene/chapter scope and identifiers. It estimates selected prose tokens, not billing or the complete workflow.
 2. **Analyze Pacing & Wordcount**: Use the `analyze_pacing` and `analyze_wordcount` tools on the target scenes.
 3. **Review Structure**: Evaluate the scene's emotional arc, narrative tension curve, and how it advances the plot.
-4. **Suggest Structural Edits**: If a scene is lacking tension or pacing is off, log suggestions using `edit_suggest` for the author to review. Do not rewrite without permission, but provide detailed structural critiques.
+4. **Act on Findings**: In supervised work, log exact passage changes with `edit_suggest` for author review. In an authorized autonomous run, apply justified revisions directly and preserve prior prose. Analysis tools provide evidence, not percentages or verdicts.

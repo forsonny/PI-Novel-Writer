@@ -7,6 +7,11 @@ description: Guided walkthrough for setting up your first novel project
 
 Welcome! Let's set up your novel project. I'll walk you through a few key decisions.
 
+If the author wants an autonomous manuscript, they can use
+`/PNW-auto start <story brief>`. Include any fixed length, audience, content limits,
+POV and protected ideas in the brief. Do not repeat this interview during an
+active autonomous run; follow `autonomous-novel` and make delegated choices.
+
 ## Step 1: What Are You Writing?
 
 Ask the author:
@@ -48,7 +53,7 @@ Based on their workflow choice:
 1. "Would you like to **develop your premise** now?" → Launch the `premise` skill
 2. After premise: suggest the `outline-novel` skill for beat sheet and chapter outlines
 3. Then: `character-interview` skill for key characters
-4. Then: begin drafting with `/draft`
+4. Then: ask to draft the first scene, or use `/PNW-auto start <brief>` for an autonomous manuscript
 
 ### For Pantsers (Discovery)
 1. "Ready to start writing?" → Open the first scene with `novel_scene_read` to show it
@@ -67,4 +72,4 @@ Here are the commands you'll use most:
 | `/what-if [scenario]` | Explore alternative scenarios |
 | `/PNW-summarize [ch sc \| chapter n]` | Generate or refresh scene/chapter summaries |
 
-More commands unlock as you progress through your project.
+All commands are registered from startup; commands that need a novel report when none is loaded.

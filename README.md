@@ -1,14 +1,100 @@
 # pi-novel-writer
 
-A full-stack novel writing environment for [PI](https://github.com/anthropics/pi), Anthropic's
-terminal coding agent. Turns PI into an AI-assisted writing tool with structured workflows for
-planning, drafting, editing, and exporting a novel — without leaving your terminal.
+A novel-writing environment for [Pi](https://github.com/earendil-works/pi).
+Version 0.2 adds an autonomous route from your initial brief through concept
+selection, outlining, drafting, revision, and a compiled, AI-reviewed manuscript.
+The existing collaborative commands remain available.
+
+Version 0.2.2 implements the corrections identified by the retained 25,011-word
+story-records audit. Existing summaries can be inspected without rewriting them;
+freshness remains a mechanical source check, never a factual verdict. Automatic
+story context covers all five bible types in deterministic core/secondary/minor
+order and reports what it selected or omitted. Character knowledge lookup is
+character-specific and can reconstruct bounded evidence through a requested scene.
+Outline and continuity guidance now requires changed dates, counts, custody,
+resources and event order to be reconciled across current plans and actual records.
+The frozen novels, thesis originals and historical test evidence remain unchanged.
+
+## Autonomous writing
+
+After opening Pi in a **separate folder for your novel**:
+
+```text
+/PNW-init
+/PNW-auto start Write a standalone progression-fantasy novel about ... [your brief]
+```
+
+Include any fixed audience, length, content boundaries, viewpoint, ending
+requirements, and ideas you want preserved. The writer makes other creative
+choices independently. It does **not** pause for concept, outline, voice, chapter,
+or edit approval. It stops at the reviewed draft, a genuine blocker, or your
+interruption. It does not publish, upload, or purchase anything.
+
+```text
+/PNW-auto status
+/PNW-auto status full
+/PNW-auto pause
+/PNW-auto resume
+```
+
+Pi must remain running for automatic continuation. Reloading, closing Pi,
+switching novels, an aborted response, or an unrecovered model error stops the
+run; resume explicitly after inspecting the saved work. A new ordinary message
+pauses the run so you can redirect it. Creative delegation is saved; execution
+permission is not silently restored on startup. If the model stops without
+saving progress, one recovery request asks it to checkpoint real work or name a
+blocker; a second failure stops rather than looping indefinitely.
+
+Successful checkpoints end a work unit without an extra model recap. Between
+units (and on resume), autonomous writing requests compaction at the smaller of
+128,000 tokens or 60% of the model context window. Saved prose, decisions and
+continuity remain on disk; compaction failure pauses rather than restarting blindly.
+This limit is a bounded default, not a claim of an optimal configuration.
+Progress replies are compact by default. Request `status full` or
+`novel_auto_status(full: true)` only when the complete evidence/issue index is needed.
+Changing progress is supplied at the end of context, not in the stable instructions.
+
+The process adapts the supplied progression-fantasy brainstorming, outlining,
+and drafting/prose theses. It preserves candidate alternatives, causal scene
+plans, capability/knowledge/resource consequences, and prose-based review
+evidence. The full sources and operational mapping are in
+[`skills/autonomous-novel/`](skills/autonomous-novel/SKILL.md).
+Other genres can use the same route with progression-specific checks marked
+not applicable rather than imposed as a formula.
+
+The run saves its brief, phase, next action, evidence and review fingerprints in
+`.pi/novel-run.json`. Creative records stay in the normal novel folders, with
+entry points at `notes/auto-brief.md`, `notes/auto-concept.md`,
+`outline/auto-plan.md`, and `notes/auto-review.md`. New runs do not replace saved
+runs; use another novel folder for another brief.
+
+Completion requires every planned scene, the recorded length range, a current
+six-aspect review and summary for each scene, no blocking review findings, and
+a current final review document. It compiles the current prose into `exports/`.
+These are **coverage and freshness checks**, not proof of literary quality.
+Reviews are AI assessments, not independent human or market validation.
+Read the manuscript and its accepted limitations before treating it as final.
+
+### Existing projects
+
+Use `/PNW-load <path>`; do not initialize again. Initialization now refuses to
+overwrite an existing novel. The autonomous route is opt-in and preserves
+existing prose. Scene writes and targeted revisions keep prior versions in
+`notes/revisions/`; backups are named by their content fingerprint and include
+scene metadata. Older project-specific writing instructions are not overwritten. Installed
+`.pi/APPEND_SYSTEM.md` copies do not update with the package. To upgrade project
+guidance, compare and merge the current rules without overwriting author additions.
+The exact old stock prohibition on reading summaries is corrected in the running
+instructions without changing your files. Merge that correction into saved guidance
+too, but keep summary writes through
+`summary_generate`. Remove conflicting milestone approvals only if you want the
+autonomous delegation to replace them.
 
 ---
 
 ## What It Does
 
-pi-novel-writer extends PI with a suite of slash commands, AI tools, and skills that guide
+pi-novel-writer extends Pi with a suite of slash commands, AI tools, and skills that guide
 you from a blank directory to a compiled manuscript. Everything is plain files on disk:
 Markdown scenes, YAML frontmatter, JSON progress records, and no proprietary formats.
 
@@ -18,16 +104,16 @@ Markdown scenes, YAML frontmatter, JSON progress records, and no proprietary for
 Premise  ->  World Bible  ->  Outline  ->  Drafting  ->  Editing  ->  Export
 ```
 
-At each stage, the AI has structured access to your world-building data, chapter outlines,
-and scene summaries — so it stays consistent across a 90,000-word novel without requiring
-you to manually paste context.
+At each stage, the AI can retrieve world-building data, outlines and summaries.
+That supports continuity across a long manuscript, but does not guarantee it:
+factual claims still need comparison with actual prose.
 
 ---
 
 ## Prerequisites
 
-- **PI** — the agent this package extends
-- **Node.js 20+**
+- **Pi 0.85.1** — the tested baseline; uses the `@earendil-works` packages and current extension lifecycle
+- **Node.js 22.19+**
 - **Pandoc** (optional, for DOCX export)
   - Windows: `winget install JohnMacFarlane.Pandoc`
   - macOS: `brew install pandoc`
@@ -37,20 +123,27 @@ you to manually paste context.
 
 ## Installation
 
-Clone or download this repository, then load the extension when starting PI:
+Clone or download this repository, then load the extension when starting Pi:
 
 ```bash
 pi -e /path/to/pi-novel-writer/
 ```
 
-To make it permanent, add the extension path to your PI configuration.
+To make it permanent:
+
+```bash
+pi install /absolute/path/to/pi-novel-writer
+```
+
+Pi supplies the declared peer dependencies. No TypeScript compilation step or
+separate runtime dependency installation is needed when loaded through Pi.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Create a directory for your novel and open PI with this extension
+# 1. Create a directory for your novel and open Pi with this extension
 mkdir my-novel && cd my-novel
 pi -e /path/to/pi-novel-writer/
 
@@ -79,19 +172,23 @@ Run the outline-novel skill
 | Command              | Description                                                     |
 |----------------------|-----------------------------------------------------------------|
 | `/PNW-init`          | Initialize a new novel project in the current directory         |
-| `/PNW-init --quick`  | Minimal init — directories and config only, no template files   |
+| `/PNW-init --quick`  | Minimal init: configuration, Git text settings and one outline-status scene; no full templates |
 | `/PNW-load`          | Load the project in the current directory                       |
 | `/PNW-load <path>`   | Load a project from an explicit path                            |
 | `/PNW-status`        | Full dashboard: word counts, chapter table, alerts              |
-| `/PNW-help`          | List all commands grouped by workflow stage                     |
+| `/PNW-help`          | List all currently registered novel commands alphabetically     |
 | `/PNW-next`          | Detect current workflow stage and show what to do next          |
+| `/PNW-auto start <brief>` | Start autonomous writing through a reviewed draft         |
+| `/PNW-auto status`  | Show saved writing phase, next action and evidence             |
+| `/PNW-auto pause`   | Stop the current response and automatic continuation          |
+| `/PNW-auto resume`  | Continue the saved run after interruption or a resolved blocker |
 
 ### World-Building and Structure
 
 | Command         | Description                                          |
 |-----------------|------------------------------------------------------|
 | `/PNW-bible`    | List all world-building entries (characters, locations, factions, items, world) |
-| `/PNW-outline`  | Show beat sheet and chapter outline summaries        |
+| `/PNW-outline`  | List chapter outline titles and purposes, not the beat sheet body |
 
 ### Writing
 
@@ -107,15 +204,27 @@ Run the outline-novel skill
 
 | Command             | Description                                               |
 |---------------------|-----------------------------------------------------------|
-| `/PNW-edit`         | Enter editing mode; activate analysis and revision tools  |
-| `/PNW-suggestions`  | View, accept, reject, or modify pending AI edit suggestions |
+| `/PNW-edit`         | Show editing guidance; does not change which tools are enabled |
+| `/PNW-suggestions`  | List pending suggestions; ask the AI to accept, reject or modify a displayed ID |
 
-### Publishing
+### Publishing and remote copies
 
 | Command         | Description                                              |
 |-----------------|----------------------------------------------------------|
-| `/PNW-compile`  | Compile manuscript to Markdown and export to DOCX via Pandoc |
-| `/PNW-progress` | Word count progress dashboard with 7-day history         |
+| `/PNW-compile`  | Compile every discovered scene to Markdown; attempt DOCX via Pandoc |
+| `/PNW-progress` | Word count progress dashboard with 7-day UTC snapshots   |
+| `/PNW-github` | Show local Git/GitHub status |
+| `/PNW-github-connect <url>` | Initialize, commit, and push to an HTTPS remote |
+| `/PNW-github-push [message]` | Stage all changes, commit, and push |
+| `/PNW-github-pull` | Pull the saved branch; conflicts remain manual |
+| `/PNW-github-clone <url> [dir]` | Clone and print the command needed to load it |
+
+Compilation does not filter scene status, publish, create PDF/EPUB, apply custom
+formatting, or clean old exports. Scene and bible “delete” tools archive recoverable
+copies. Merge archives both inputs but removes the second scene from the active
+manuscript. GitHub connect can force-push after a rejected initial push; use an
+empty remote unless replacing its history is intentional. Tokens are stored in
+plain text locally and may remain in the Git remote configuration.
 
 ---
 
@@ -127,6 +236,7 @@ They run multi-step processes and call the underlying tools automatically.
 | Skill                | Trigger phrase                                    | Purpose                           |
 |----------------------|---------------------------------------------------|-----------------------------------|
 | `getting-started`    | "Run the getting-started skill"                   | Guided initial project setup      |
+| `autonomous-novel`   | `/PNW-auto start <brief>`                         | Autonomous, thesis-based manuscript workflow |
 | `premise`            | "Run the premise skill"                           | Develop story concept and hook    |
 | `world-building`     | "Run the world-building skill"                    | Create bible entries interactively|
 | `character-interview`| "Run the character-interview skill for [name]"    | Deep character development        |
@@ -140,12 +250,14 @@ They run multi-step processes and call the underlying tools automatically.
 | `copy-edit`          | "Run the copy-edit skill on chapter [N]"          | Grammar and style pass            |
 | `continuity-check`   | "Run the continuity-check skill on chapter [N]"   | Fact-check against world bible    |
 | `voice-match`        | "Run the voice-match skill for [character]"       | Character voice consistency check |
+| `github-setup`       | "Run the github-setup skill"                      | Guided, explicitly authorized remote setup |
 
 ---
 
 ## Prompts
 
-Short prompts for focused AI tasks, invoked the same way as skills.
+Short prompts for focused AI tasks. Invoke them as slash commands, for example
+`/scene-expand <your sketch>` or `/dialogue-polish <your dialogue>`.
 
 | Prompt             | Purpose                                         |
 |--------------------|-------------------------------------------------|
@@ -158,14 +270,11 @@ Short prompts for focused AI tasks, invoked the same way as skills.
 
 ## Project Structure
 
-Running `/PNW-init` creates the following layout in your novel directory:
+Full `/PNW-init` starts a novel with one scene. The layout grows as work is saved:
 
 ```
 my-novel/
   project.json              # project config, word count targets, context budgets
-  system/
-    SYSTEM.md               # AI system prompt (edit to customize behavior)
-    AGENTS.md               # agent role definitions
   manuscript/
     chapters/
       01/
@@ -184,49 +293,61 @@ my-novel/
   summaries/
     scenes/                 # per-scene summaries with integrity hashes
     chapters/               # chapter-level summaries
-    acts/                   # act summaries (optional)
   exports/                  # compiled Markdown and DOCX output
   continuity/
-    facts.json              # extracted world facts for consistency checking
-    character-states.json   # character knowledge snapshots per scene
+    facts.json              # agent-maintained facts with scene evidence, not automatic extraction
+    character-states.json   # agent-maintained actual character records; shapes may vary
   timeline/
     timeline.json           # timeline event records
   notes/
     deleted-scenes/         # archived scenes (non-destructive delete)
     deleted-bible/          # archived bible entries
   .pi/
-    progress.json           # daily word counts, sprint records, API costs
+    APPEND_SYSTEM.md        # writing guidance added to Pi's normal instructions
+    AGENTS.md               # editable project notes
+    novel-run.json          # autonomous progress, only after explicitly starting
+    progress.json           # UTC total-word snapshots and stored goals
 ```
 
-All files are plain text. No database, no binary formats.
+Project sources and records are plain text. Optional DOCX exports are binary; no database is used.
+Short-story format uses `manuscript/scenes/`; flash fiction uses
+`manuscript/story.md`. Use scene tools to discover paths rather than assuming
+the novel layout.
 
 ---
 
 ## How Context Injection Works
 
-The AI has access to your world at every turn without manual pasting. Context is
-injected automatically in layers, each controlled by a token budget in `project.json`:
+Automatic context includes the voice profile, a bounded selection of bible
+entries and fresh summaries. It is not guaranteed to include everything a scene
+needs. Drafting must explicitly read its scene card, relevant prior prose and
+continuity records. Autonomous progress is restored separately on each continuation.
 
 ```
 [STORY CONTEXT]
   Voice profile      <- writing style sample (voiceProfile budget)
-  Bible entries      <- characters, locations, factions (bible budget)
-  Chapter outlines   <- current + upcoming chapter structure (outline budget)
-  Summaries          <- scene summaries, or chapter summaries if scenes exceed budget
-  Recent prose       <- last few hundred words of the current scene
+  Bible entries      <- all five types; core, secondary, then minor (bible budget)
+  Summaries          <- fresh scene summaries (recent first), with chapter fallback
 ```
 
 Adjust budgets in `project.json` under `settings.contextBudget`. Token estimation
-uses a 4 characters-per-token approximation.
+uses a 4 characters-per-token approximation. `context_summary` reports selected
+and omitted bible entries and selected summaries.
 
 ---
 
 ## Summary System
 
-Summaries are how the AI maintains continuity across a novel without re-reading
-every scene on every turn. Each drafted scene has a corresponding summary file
+Summaries help maintain continuity without rereading every scene on every turn.
+Each drafted scene has a corresponding summary file
 with a SHA-256 hash of the scene body. If the prose changes, the hash fails and
-the summary is flagged as stale.
+the summary is flagged as stale and excluded from automatic context. Chapter
+summaries fingerprint their drafted scene contents too. Legacy chapter summaries
+need regeneration once; missing or unverified evidence is not called current.
+Use `summary_read({chapter, scene?})` to inspect a saved summary, freshness and
+source path without regeneration. Ordinary read-only summary access is allowed;
+creation and replacement stay in `summary_generate`. A matching fingerprint proves
+only that the source is unchanged, not that the summary is accurate.
 
 ```bash
 /PNW-summarize              # find and refresh all stale or missing summaries
@@ -240,23 +361,25 @@ See `help/summarize/` for full documentation.
 
 ## Edit Suggestion Workflow
 
-Editing skills generate suggestions stored in `.pi/edit-suggestions.json` rather
-than modifying scene files directly. You review and approve each change:
+In collaborative work, editing skills can save suggestions in
+`.pi/edit-suggestions.json`. Accepting a suggestion now actually replaces its
+unique matching passage; stale or ambiguous matches fail without consuming the
+suggestion. Prior prose is retained. Autonomous writing applies its own justified
+revisions instead of waiting for individual approvals.
 
 ```bash
 /PNW-edit                   # enter editing mode
 # Ask AI: "Run the dev-edit skill on chapter 1"
 /PNW-suggestions            # review the generated suggestions
-# Accept: "Accept edit-1710000000001"
-# Reject: "Reject edit-1710000000003. I like the original phrasing."
-# Modify: "Modify edit-1710000000002: change the proposed text to [your version]"
+# Ask to accept, reject, or modify an actual suggestion ID shown by the list.
 ```
 
 ---
 
 ## Help System
 
-Every command has detailed documentation in the `help/` directory:
+Command-group documentation lives in `help/`; autonomous operation is covered
+above and in `skills/autonomous-novel/SKILL.md`:
 
 ```
 help/INDEX.md               # full command index and quick reference
@@ -288,6 +411,42 @@ pi-novel-writer is built from three types of components:
 - `novel-export.ts` — manuscript compilation, Pandoc DOCX, `/PNW-compile`
 - `novel-progress.ts` — word count tracking, sprints, `/PNW-progress`, `/PNW-sprint`
 - `novel-github.ts` — GitHub integration for novel repositories
+- `novel-auto.ts` — persistent autonomous run, continuation, evidence and completion gates
+
+Editorial analysis tools return actual scene evidence for the AI to assess.
+They do not claim fixed pacing percentages, invented reading grades, or automatic
+clean continuity. Status changes no longer overwrite character knowledge with
+empty status markers. `bible_consistency_check` is date-based freshness only:
+missing, invalid or future synchronization dates mean unknown, never factually
+consistent. `novel_character_knowledge` returns only the matching actual character
+record without a cutoff; with a cutoff it reconstructs evidence involving that
+character through and including the scene. Evidence is not proof of knowledge and
+cannot remove future information already present elsewhere in the conversation.
+
+## Verification
+
+This version was checked against Pi's real extension loader, tool behavior,
+saved-state gates, and continuation controls, plus a live author-session
+verification. Tests, generated novels and audit records are retained locally
+and deliberately excluded from this extension-only repository distribution.
+
+### Corrected editing and progress behavior
+
+- Splitting retains existing scene IDs so other scene references do not break.
+  A continuation gets a new ID but an adjacent reading position (`order` in its
+  frontmatter). Lists, searches, chapter summaries and compilation use that order.
+  Refresh the split scenes' summaries and scene cards. Original prose is retained.
+- Bulk find/replace and entity renaming retain earlier manuscript versions in
+  `notes/revisions/`, just like targeted edits.
+- Word goals are authoritative in `project.json`; `progress_set_goal` updates
+  those settings and the progress view together. For an older project whose two
+  goal stores disagreed, set the desired goal once to reconcile them.
+- Usage displays show the **current session's reported estimate**, including
+  tool and compaction usage, not a project lifetime bill. Unsupported telemetry
+  is not silently presented as zero.
+- `cost_estimate(scope: "scene")` requires `chapter` and `scene`;
+  `scope: "chapter"` requires `chapter`. Its estimate excludes repeated history
+  and other context and must not be interpreted as billing.
 
 **Skills** (Markdown workflow files in `skills/`):
 Structured multi-step AI workflows. The AI reads the skill file, then conducts a
@@ -303,7 +462,7 @@ Short focused prompts for common single-task AI requests.
 Improvements to skills, prompts, and extensions are welcome.
 
 - Skills and prompts are Markdown files — no TypeScript knowledge needed to contribute
-- Extension tools follow the PI tool registration API (`pi.registerTool`, `pi.registerCommand`)
+- Extension tools follow the Pi tool registration API (`pi.registerTool`, `pi.registerCommand`)
 - Open an issue before submitting a large change
 
 ---

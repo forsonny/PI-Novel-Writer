@@ -10,7 +10,7 @@ This skill provides a structured, end-to-end framework for outlining a novel. Yo
 
 ## Workflow
 
-This is a multi-step process. Complete each step and get user approval before advancing. Use `AGENTS.md` and `outline/premise.md` to ground your understanding of the story.
+In supervised work, complete each step and get user approval before advancing. In an authorized autonomous run, make delegated creative choices without milestone approvals. Use `.pi/AGENTS.md`, the root `premise.md`, and current story records to ground the outline.
 
 ### Step 1: Framework Selection
 Ask the user what structural framework they prefer. Offer a few options if they are unsure:
@@ -39,4 +39,4 @@ Once the chapters are outlined, offer to help the user break down specific chapt
 
 **Action:** Use the `outline_scene_card_create` tool to append specific scene beats (e.g., `## Scene 1: Arrival`) to the chapter outlines you created in Step 3.
 
-**Communication Directive:** Wait for user confirmation between steps! Do not blast past step 2 to generate 30 chapter files without ensuring the user likes the beat sheet first.
+**Communication Directive:** Wait for confirmation between steps only in supervised work. Under `/PNW-auto`, proceed through saved checkpoints without milestone approval.

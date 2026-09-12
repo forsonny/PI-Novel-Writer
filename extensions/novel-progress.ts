@@ -3,10 +3,12 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import { Type } from "@sinclair/typebox";
-import { Box, Text, Container, Spacer, truncateToWidth } from "@mariozechner/pi-tui";
+import { Type } from "typebox";
+import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { readText, writeText } from "./utils/platform.ts";
-import { getProject } from "./novel-core.ts";
+import { getProject, sessionUsageCost } from "./novel-core.ts";
+import { findAllBibleEntries } from "./novel-bible.ts";
 
 function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -37,15 +39,15 @@ function getTotalWords(project: any) {
 
 function loadProgress(project: any) {
   const progressPath = path.join(project.rootPath, ".pi", "progress.json");
+  const goals = { daily: project.config.dailyWordGoal ?? 2000, total: project.config.targetWordCount ?? 90000 };
   if (fs.existsSync(progressPath)) {
     try {
-      return JSON.parse(readText(progressPath));
+      return { ...JSON.parse(readText(progressPath)), goals };
     } catch {}
   }
   return {
     history: {}, // date YYYY-MM-DD -> word count 
-    goals: { daily: project.config.dailyWordGoal || 2000, total: project.config.targetWordCount || 90000 },
-    cumulative_api_cost_usd: 0
+    goals
   };
 }
 
@@ -156,7 +158,7 @@ async function detectWorkflowStage(
   // --- Stats computation ---
 
   const bibleEntryCount = rootPath
-    ? getAllMdFiles(path.join(rootPath, "bible")).length
+    ? findAllBibleEntries(rootPath).length
     : 0;
 
   const outlineChapterCount = rootPath ? countOutlineChapters(rootPath) : 0;
@@ -293,6 +295,10 @@ async function detectWorkflowStage(
 }
 
 export default function novelProgressExtension(pi: any) {
+  pi.on("session_shutdown", () => {
+    if (sprintInterval) clearInterval(sprintInterval);
+    sprintInterval = null;
+  });
 
   // ─── Message Renderers ───────────────────────────────────────────────────
   pi.registerMessageRenderer("novel-progress", (message: any, _options: any, theme: any) => {
@@ -373,45 +379,16 @@ export default function novelProgressExtension(pi: any) {
     container.addChild(new Text(`  [${theme.fg("success", tBarStr.slice(0, barLen))}] ${details.tPct}% `, 2, 0));
     
     container.addChild(new Spacer(1));
-    container.addChild(new Text(`  API Cost: $${details.apiCost.toFixed(2)} USD `, 2, 0, (t: string) => theme.fg("dim", t)));
+    container.addChild(new Text(details.apiCost === undefined
+      ? "  Session usage estimate unavailable"
+      : `  Session usage estimate: $${details.apiCost.toFixed(3)} (not billing)`, 2, 0, (t: string) => theme.fg("dim", t)));
 
     const outerBox = new Box(1, 1);
     outerBox.addChild(container);
     return outerBox;
   });
 
-  pi.registerMessageRenderer("novel-help", (_message: any, _options: any, theme: any) => {
-    const maxW = Math.max(30, (process.stdout.columns || 60) - 4);
-    const container = new Container();
-
-    const headerBox = new Box(1, 0, (t: string) => theme.bold(theme.fg("accent", t)));
-    headerBox.addChild(new Text(` 📖 NOVEL WRITING CLI COMMANDS `, 0, 0));
-    container.addChild(headerBox);
-    container.addChild(new Spacer(1));
-
-    const sdLabel = "  SETUP & DASHBOARD ";
-    const sdDashes = "─".repeat(Math.max(0, maxW - sdLabel.length));
-    container.addChild(new Text(sdLabel + sdDashes, 0, 0, (_t: string) => theme.fg("accent", sdLabel) + theme.fg("dim", sdDashes)));
-    container.addChild(new Text(`  ${theme.fg("success", "/PNW-init".padEnd(12))} Initialize a new novel project`, 2, 0));
-    container.addChild(new Text(`  ${theme.fg("success", "/PNW-status".padEnd(12))} Show project dashboard`, 2, 0));
-    container.addChild(new Text(`  ${theme.fg("success", "/PNW-progress".padEnd(12))} Show word count progress and goals`, 2, 0));
-    container.addChild(new Spacer(1));
-
-    const weLabel = "  WRITING & EDITING ";
-    const weDashes = "─".repeat(Math.max(0, maxW - weLabel.length));
-    container.addChild(new Text(weLabel + weDashes, 0, 0, (_t: string) => theme.fg("accent", weLabel) + theme.fg("dim", weDashes)));
-    container.addChild(new Text(`  ${theme.fg("success", "/PNW-sprint".padEnd(12))} Start a timed writing sprint`, 2, 0));
-    container.addChild(new Text(`  ${theme.fg("success", "/PNW-compile".padEnd(12))} Compile manuscript & export to DOCX`, 2, 0));
-    container.addChild(new Spacer(1));
-
-    container.addChild(new Text(`  Use natural language to ask me to draft a scene, review an outline,`, 2, 0, (t: string) => theme.fg("dim", t)));
-    container.addChild(new Text(`  or refine character voices.`, 2, 0, (t: string) => theme.fg("dim", t)));
-    container.addChild(new Text(`  Example: "Run the retroactive-outline skill for my newest scene."`, 2, 0, (t: string) => theme.fg("dim", t)));
-
-    const outerBox = new Box(1, 1);
-    outerBox.addChild(container);
-    return outerBox;
-  });
+  pi.registerMessageRenderer("novel-help", (message: any) => new Text(message.content, 1, 1));
 
   pi.registerMessageRenderer("novel-next", (message: any, _options: any, theme: any) => {
     const result = message.details as WorkflowStageResult | undefined;
@@ -524,14 +501,6 @@ export default function novelProgressExtension(pi: any) {
     
     progress.history[today] = words;
     
-    // Attempt cost accumulation if available from usage stats
-    if (ctx.getUsage && typeof ctx.getUsage === "function") {
-       const u = ctx.getUsage();
-       if (u && u.cost) {
-          progress.cumulative_api_cost_usd += u.cost;
-       }
-    }
-
     saveProgress(project, progress);
   });
 
@@ -541,7 +510,7 @@ export default function novelProgressExtension(pi: any) {
     handler: async (_args: string, ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
@@ -575,12 +544,12 @@ export default function novelProgressExtension(pi: any) {
       pi.sendMessage({
         customType: "novel-progress",
         content: `Progress Dashboard`,
-        display: { title: "Progress", isSummary: false },
+        display: true,
         details: {
           projectTitle: project.config.title,
           writtenToday, dailyGoal, dPct,
           words, totalGoal, tPct,
-          apiCost: progress.cumulative_api_cost_usd || 0,
+          apiCost: sessionUsageCost(ctx),
           history: progress.history
         }
       });
@@ -593,12 +562,12 @@ export default function novelProgressExtension(pi: any) {
     handler: async (args: string, ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
       if (sprintInterval) {
-        pi.sendMessage({ customType: "markdown", content: "A sprint is already running! Abort it with Ctrl+C first.", display: { title: "Sprint", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "A sprint is already running! Abort it with Ctrl+C first.", display: true });
         return;
       }
 
@@ -614,7 +583,7 @@ export default function novelProgressExtension(pi: any) {
         return `${String(m).padStart(2, "0")}:${String(s).padStart(2,"0")}`;
       };
 
-      pi.sendMessage({ customType: "markdown", content: `Sprint started: ${minutes} minutes. Go write!`, display: { title: "Sprint", isSummary: true } });
+      pi.sendMessage({ customType: "markdown", content: `Sprint started: ${minutes} minutes. Go write!`, display: true });
 
       // We attach to the global abort signal if available
       const controller = new AbortController();
@@ -632,7 +601,7 @@ export default function novelProgressExtension(pi: any) {
            const endWords = getTotalWords(project);
            const diff = endWords - sprintStartWords;
            const wpm = minutes > 0 ? (diff / minutes).toFixed(1) : 0;
-           pi.sendMessage({ customType: "markdown", content: `Sprint complete! You wrote ${diff} words (${wpm} WPM).`, display: { title: "Sprint Done", isSummary: true } });
+           pi.sendMessage({ customType: "markdown", content: `Sprint complete! You wrote ${diff} words (${wpm} WPM).`, display: true });
            if (ctx.ui?.setFooter) ctx.ui.setFooter(undefined);
            return;
         }
@@ -654,32 +623,30 @@ export default function novelProgressExtension(pi: any) {
            const endWords = getTotalWords(project);
            const diff = endWords - sprintStartWords;
            if (ctx.ui?.setFooter) ctx.ui.setFooter(undefined);
-           pi.sendMessage({ customType: "markdown", content: `Sprint aborted. You wrote ${diff} words.`, display: { title: "Sprint Aborted", isSummary: true } });
+           pi.sendMessage({ customType: "markdown", content: `Sprint aborted. You wrote ${diff} words.`, display: true });
          });
       }
 
       pi.sendMessage({
         customType: "markdown",
         content: `Sprint started. Check the footer for the timer!`,
-        display: { title: "Sprint", isSummary: false }
+        display: true
       });
     }
   });
 
   // ─── Command: /PNW-help ───────────────────────────────────────────────────
   pi.registerCommand("PNW-help", {
-    description: "Show available commands grouped by workflow stage",
+    description: "Show all available novel commands",
     handler: async (_args: string, ctx: any) => {
-      // Gather raw commands if pi.getCommands exists, else fallback
-      let commands: Record<string, string> = {};
-      if (typeof pi.getCommands === "function") {
-         commands = pi.getCommands();
-      }
+      const commands = pi.getCommands().filter((command: any) => command.name.startsWith("PNW-"))
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
       pi.sendMessage({
         customType: "novel-help",
-        content: "Help menu",
-        display: { title: "Help", isSummary: false },
+        content: "NOVEL WRITING COMMANDS\n\n" + commands.map((command: any) =>
+          `/${command.name}\n  ${command.description || ""}`).join("\n\n"),
+        display: true,
         details: commands
       });
     }
@@ -691,7 +658,7 @@ export default function novelProgressExtension(pi: any) {
       const project = getProject();
       const rootPath = project?.rootPath ?? null;
       const result = await detectWorkflowStage(project, rootPath);
-      pi.sendMessage({ customType: "novel-next", content: "Workflow status analyzed.", display: { title: "What's Next", isSummary: false }, details: result });
+      pi.sendMessage({ customType: "novel-next", content: "Workflow status analyzed.", display: true, details: result });
     }
   });
 
@@ -701,11 +668,13 @@ export default function novelProgressExtension(pi: any) {
     label: "Progress Overview",
     description: "Get the raw progress stats (word count, goals, history).",
     parameters: Type.Object({}),
-    execute: async () => {
+    execute: async (_id: string, _params: any, _signal: any, _onUpdate: any, ctx: any) => {
       const project = getProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
-      const progress = loadProgress(project);
+      const { cumulative_api_cost_usd: _legacyCost, ...progress } = loadProgress(project);
       progress.currentWords = getTotalWords(project);
+      progress.session_usage_cost_usd = sessionUsageCost(ctx);
+      progress.usage_note = "Current session's reported model usage estimate, including compaction; not billing.";
       return { content: [{ type: "text", text: JSON.stringify(progress, null, 2) }] };
     }
   });
@@ -716,18 +685,22 @@ export default function novelProgressExtension(pi: any) {
     label: "Set Progress Goal",
     description: "Set the daily or total word count targets.",
     parameters: Type.Object({
-      daily: Type.Optional(Type.Number()),
-      total: Type.Optional(Type.Number())
+      daily: Type.Optional(Type.Integer({ minimum: 0 })),
+      total: Type.Optional(Type.Integer({ minimum: 0 }))
     }),
     execute: async (_id: string, params: any) => {
       const project = getProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const configPath = path.join(project.rootPath, "project.json");
+      await withFileMutationQueue(configPath, () => {
+        const config = JSON.parse(readText(configPath));
+        if (params.daily !== undefined) config.dailyWordGoal = params.daily;
+        if (params.total !== undefined) config.targetWordCount = params.total;
+        writeText(configPath, JSON.stringify(config, null, 2));
+        project.config = config;
+        saveProgress(project, loadProgress(project));
+      });
       const progress = loadProgress(project);
-      
-      if (params.daily !== undefined) progress.goals.daily = params.daily;
-      if (params.total !== undefined) progress.goals.total = params.total;
-      
-      saveProgress(project, progress);
       return { content: [{ type: "text", text: `Goals updated to: Daily ${progress.goals.daily}, Total ${progress.goals.total}` }] };
     }
   });

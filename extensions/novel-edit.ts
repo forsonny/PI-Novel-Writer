@@ -3,10 +3,12 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import { Type } from "@sinclair/typebox";
-import { Box, Text, Container, Spacer, truncateToWidth } from "@mariozechner/pi-tui";
+import { randomUUID } from "node:crypto";
+import { Type } from "typebox";
+import { withFileMutationQueue, truncateHead } from "@earendil-works/pi-coding-agent";
+import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { readText, writeText } from "./utils/platform.ts";
-import { getProject } from "./novel-core.ts";
+import { getProject, replacePassage, parseFrontmatter, countWords, saveScene } from "./novel-core.ts";
 
 export default function novelEditExtension(pi: any) {
 
@@ -58,49 +60,19 @@ export default function novelEditExtension(pi: any) {
     return outerBox;
   });
 
-  // ─── Event Listeners ────────────────────────────────────────────────────────
-  pi.events.on("novel:scene-status-updated", async (event: any) => {
-    const { chapter, scene, status, content } = event;
-    const project = getProject();
-    if (!project) return;
-
-    if (["draft", "revised", "polished", "final"].includes(status)) {
-      // 4.1.11: timeline.json population
-      const timelinePath = path.join(project.rootPath, "timeline", "timeline.json");
-      if (fs.existsSync(timelinePath)) {
-        try {
-          const tl = JSON.parse(readText(timelinePath));
-          // Note: Full AI extraction would happen here. For now we append a marker.
-          tl.events.push({ chapter, scene, status, timestamp: Date.now() });
-          writeText(timelinePath, JSON.stringify(tl, null, 2));
-        } catch(e) {}
-      }
-
-      // 4.1.10: character-states.json population
-      const statesPath = path.join(project.rootPath, "continuity", "character-states.json");
-      if (fs.existsSync(statesPath)) {
-        try {
-          const states = JSON.parse(readText(statesPath));
-          states[`ch${chapter}_sc${scene}`] = { updated_at: Date.now(), status };
-          writeText(statesPath, JSON.stringify(states, null, 2));
-        } catch(e) {}
-      }
-    }
-  });
-
   // ─── Slash Commands ───────────────────────────────────────────────────────
   pi.registerCommand("PNW-edit", {
     description: "Enter editing mode for a scene",
     handler: async (_args: string, _ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
       pi.sendMessage({
         customType: "novel-edit-mode",
         content: "Editing mode activated.",
-        display: { title: "Edit Mode", isSummary: false }
+        display: true
       });
     }
   });
@@ -110,12 +82,12 @@ export default function novelEditExtension(pi: any) {
     handler: async (_args: string, _ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded.", display: true });
         return;
       }
       const suggestionsPath = path.join(project.rootPath, ".pi", "edit-suggestions.json");
       if (!fs.existsSync(suggestionsPath)) {
-        pi.sendMessage({ customType: "novel-suggestions", content: "No pending suggestions.", display: { title: "Suggestions", isSummary: false }, details: { suggestions: [] } });
+        pi.sendMessage({ customType: "novel-suggestions", content: "No pending suggestions.", display: true, details: { suggestions: [] } });
         return;
       }
       try {
@@ -123,11 +95,11 @@ export default function novelEditExtension(pi: any) {
         pi.sendMessage({
           customType: "novel-suggestions",
           content: "Pending Suggestions",
-          display: { title: "Suggestions", isSummary: false },
+          display: true,
           details: { suggestions: data.pending || [] }
         });
       } catch(e) {
-        pi.sendMessage({ customType: "markdown", content: "Error reading suggestions file.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "Error reading suggestions file.", display: true });
       }
     }
   });
@@ -159,7 +131,7 @@ export default function novelEditExtension(pi: any) {
       const suggestionsPath = getSuggestionsFile();
       if (!suggestionsPath) return { content: [{ type: "text", text: "No project loaded." }] };
       const data = JSON.parse(readText(suggestionsPath));
-      const newId = `sug_${Date.now()}`;
+      const newId = `sug_${randomUUID()}`;
       data.pending.push({ id: newId, ...params, timestamp: Date.now() });
       writeText(suggestionsPath, JSON.stringify(data, null, 2));
       return { content: [{ type: "text", text: `Suggestion ${newId} logged.` }] };
@@ -193,12 +165,16 @@ export default function novelEditExtension(pi: any) {
     execute: async (_id: string, params: any) => {
       const suggestionsPath = getSuggestionsFile();
       if (!suggestionsPath) return { content: [{ type: "text", text: "No project loaded." }] };
-      const data = JSON.parse(readText(suggestionsPath));
-      const idx = data.pending.findIndex((s:any) => s.id === params.id);
-      if (idx === -1) return { content: [{ type: "text", text: `Suggestion ${params.id} not found.` }] };
-      const sug = data.pending.splice(idx, 1)[0];
-      data.accepted.push(sug);
-      writeText(suggestionsPath, JSON.stringify(data, null, 2));
+      await withFileMutationQueue(suggestionsPath, async () => {
+        const data = JSON.parse(readText(suggestionsPath));
+        const idx = data.pending.findIndex((s:any) => s.id === params.id);
+        if (idx === -1) throw new Error(`Suggestion ${params.id} not found.`);
+        const sug = data.pending[idx];
+        await replacePassage(sug.chapter, sug.scene, sug.original_text, sug.suggested_text);
+        data.pending.splice(idx, 1);
+        data.accepted.push(sug);
+        writeText(suggestionsPath, JSON.stringify(data, null, 2));
+      });
       return { content: [{ type: "text", text: `Suggestion ${params.id} accepted.` }] };
     }
   });
@@ -257,6 +233,7 @@ export default function novelEditExtension(pi: any) {
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
       
+      await withFileMutationQueue(scene.filePath, () => {
       const content = readText(scene.filePath);
       // We need to carefully split frontmatter from body
       const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
@@ -268,33 +245,55 @@ export default function novelEditExtension(pi: any) {
       }
       
       const lines = body.split("\n");
-      const start = Math.max(0, params.line_start - 1);
-      const end = Math.min(lines.length, params.line_end);
+      if (!Number.isInteger(params.line_start) || !Number.isInteger(params.line_end) ||
+          params.line_start < 1 || params.line_end < params.line_start || params.line_end > lines.length) {
+        throw new Error(`Invalid line range. Scene contains ${lines.length} lines.`);
+      }
+      const start = params.line_start - 1;
+      const end = params.line_end;
       lines.splice(start, end - start, ...params.new_content.split("\n"));
       
-      writeText(scene.filePath, frontmatter + lines.join("\n"));
+      saveScene(scene.filePath, frontmatter + lines.join("\n"));
+      });
       return { content: [{ type: "text", text: `Replaced lines ${params.line_start} to ${params.line_end}.` }] };
     }
   });
+
+  // These tools supply evidence, not fabricated editorial verdicts.
+  function analysisInput(params: any, task: string, continuity = false) {
+    const project = getProject();
+    if (!project) throw new Error("No project loaded.");
+    const key = `${String(params.chapter).padStart(2, "0")}-${String(params.scene).padStart(2, "0")}`;
+    const scene = project.scenes.get(key);
+    if (!scene) throw new Error(`Scene ${params.chapter}.${params.scene} not found.`);
+    const { body } = parseFrontmatter(readText(scene.filePath));
+    let text = `EDITORIAL TASK (not yet performed): ${task}\nCite actual passages; distinguish supported, uncertain, and contradicted findings. No invented reader responses or percentages.\nSource: ${scene.filePath}\n\n${body}`;
+    if (continuity) for (const relative of ["continuity/facts.json", "continuity/character-states.json", "timeline/timeline.json"]) {
+      const file = path.join(project.rootPath, relative);
+      text += `\n\nSource: ${file}\n${fs.existsSync(file) ? readText(file) : "Not recorded; verify from earlier prose."}`;
+    }
+    const output = truncateHead(text);
+    return { content: [{ type: "text", text: output.content + (output.truncated ? "\n[Truncated; read the listed source files before completing the review.]" : "") }] };
+  }
 
   // ─── Tools: Analysis ──────────────────────────────────────────────────────
   pi.registerTool({
     name: "analyze_pacing",
     label: "Analyze Pacing",
-    description: "Scene-by-scene pacing analysis",
+    description: "Read scene evidence for the agent to analyze pacing; does not generate an editorial verdict.",
     parameters: Type.Object({ chapter: Type.Number(), scene: Type.Number() }),
     execute: async (_id: string, params: any) => {
-      return { content: [{ type: "text", text: `Pacing analysis for Chapter ${params.chapter} Scene ${params.scene}:\nAction: 40%\nDialogue: 35%\nReflection: 25%\nPacing is well-balanced.` }] };
+      return analysisInput(params, "Assess attention, scene/summary balance, repetition, tension, and consequences against the scene's purpose.");
     }
   });
 
   pi.registerTool({
     name: "analyze_dialogue",
     label: "Analyze Dialogue",
-    description: "Dialogue tag analysis and distribution",
+    description: "Read scene evidence for the agent to assess dialogue and character voices.",
     parameters: Type.Object({ chapter: Type.Number(), scene: Type.Number() }),
     execute: async (_id: string, params: any) => {
-      return { content: [{ type: "text", text: `Dialogue analysis:\n- Alternatives to "said" used 15% of the time (good).\n- Adverb usage in tags is low (excellent).` }] };
+      return analysisInput(params, "Assess speech acts, subtext, differentiated attention and voice, and redundant exposition.");
     }
   });
 
@@ -306,27 +305,30 @@ export default function novelEditExtension(pi: any) {
     execute: async (_id: string, _params: any) => {
       const project = getProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
-      return { content: [{ type: "text", text: `Total project words: (Analyzed dynamically). You are on track for your goal.` }] };
+      const scenes = [...project.scenes.values()].map(s => ({
+        chapter: s.chapter, scene: s.scene, words: countWords(parseFrontmatter(readText(s.filePath)).body)
+      }));
+      return { content: [{ type: "text", text: JSON.stringify({ totalWords: scenes.reduce((n, s) => n + s.words, 0), targetWords: project.config.targetWordCount, scenes }) }] };
     }
   });
 
   pi.registerTool({
     name: "analyze_continuity",
     label: "Analyze Continuity",
-    description: "Cross-reference scene content against facts.json and character-states.json",
+    description: "Load scene and continuity records for the agent to cross-reference. Missing records are unknown, not a clean review.",
     parameters: Type.Object({ chapter: Type.Number(), scene: Type.Number() }),
     execute: async (_id: string, params: any) => {
-      return { content: [{ type: "text", text: `Continuity analysis completed. No glaring contradictions found for Chapter ${params.chapter} Scene ${params.scene}. (Auto-checked facts.json freshness).` }] };
+      return analysisInput(params, "Reconstruct causal action, knowledge access, resources, costs, reliability, chronology, and relationship consequences.", true);
     }
   });
 
   pi.registerTool({
     name: "analyze_readability",
     label: "Analyze Readability",
-    description: "Flesch-Kincaid grade level, sentence length distribution",
+    description: "Read prose for a contextual readability review; no invented grade-level score.",
     parameters: Type.Object({ chapter: Type.Number(), scene: Type.Number() }),
     execute: async (_id: string, params: any) => {
-      return { content: [{ type: "text", text: `Readability for Chapter ${params.chapter} Scene ${params.scene}:\nGrade Level: 8.5\nAvg Sentence Length: 14 words\nVocabulary: Accessible` }] };
+      return analysisInput(params, "Assess referents, terminology, sentence and paragraph relations, and orientation. Preserve intentional difficulty and voice.");
     }
   });
 }

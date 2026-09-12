@@ -1,34 +1,21 @@
 import path from "node:path";
 import fs from "node:fs";
 import crypto from "node:crypto";
-import { Type } from "@sinclair/typebox";
-import { Text } from "@mariozechner/pi-tui";
-import { readText, writeText, ensureDir } from "./utils/platform.ts";
-import { getProject } from "./novel-core.ts";
+import { Type } from "typebox";
+import { truncateHead } from "@earendil-works/pi-coding-agent";
+import { readText, writeText, ensureDir, normalizeKey } from "./utils/platform.ts";
+import { getProject, replacePassage, orderedScenes, sceneKey, parseFrontmatter } from "./novel-core.ts";
+import { findAllBibleEntries } from "./novel-bible.ts";
 
 function generateHash(content: string) {
   return crypto.createHash("sha256").update(content).digest("hex");
 }
 
-function parseFrontmatter(content: string): { meta: Record<string, any>; body: string } {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!match) return { meta: {}, body: content };
-  const rawYaml = match[1];
-  const body = content.slice(match[0].length);
-  const meta: Record<string, any> = {};
-  for (const line of rawYaml.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const kvMatch = trimmed.match(/^(\w[\w_]*)\s*:\s*(.*)$/);
-    if (kvMatch) {
-       let val = kvMatch[2].trim();
-       if (val.startsWith('"') || val.startsWith("'")) val = val.slice(1, -1);
-       meta[kvMatch[1]] = val;
-    } else if (trimmed.startsWith("- ")) {
-       // simplified array parse
-    }
-  }
-  return { meta, body };
+export function chapterSource(project: any, chapter: number): string {
+  return orderedScenes(project)
+    .filter(s => s.chapter === chapter && s.status !== "outline")
+    .map(s => `${sceneKey(s.chapter, s.scene)}\n${parseFrontmatter(readText(s.filePath)).body}`)
+    .join("\n\n");
 }
 
 export default function novelWriteExtension(pi: any) {
@@ -58,21 +45,23 @@ export default function novelWriteExtension(pi: any) {
     // Read scene summaries
     for (const f of fs.readdirSync(path.join(sumDir, "scenes"))) {
        if (f.endsWith(".md")) {
-          summaries[`scene:${f.replace(".md", "")}`] = parseFrontmatter(readText(path.join(sumDir, "scenes", f))).body;
+          const key = f.replace(".md", "");
+          const scene = project.scenes.get(key);
+          const summary = parseFrontmatter(readText(path.join(sumDir, "scenes", f)));
+          if (scene && summary.meta.hash === generateHash(parseFrontmatter(readText(scene.filePath)).body)) {
+            summaries[`scene:${key}`] = summary.body;
+          }
        }
     }
     // Chapter summaries
     for (const f of fs.readdirSync(path.join(sumDir, "chapters"))) {
        if (f.endsWith(".md")) {
-          summaries[`chapter:${f.replace(".md", "")}`] = parseFrontmatter(readText(path.join(sumDir, "chapters", f))).body;
+          const source = chapterSource(project, Number(f.replace(".md", "")));
+          const summary = parseFrontmatter(readText(path.join(sumDir, "chapters", f)));
+          if (source && summary.meta.hash === generateHash(source)) summaries[`chapter:${f.replace(".md", "")}`] = summary.body;
        }
     }
-    // Act summaries
-    for (const f of fs.readdirSync(path.join(sumDir, "acts"))) {
-       if (f.endsWith(".md")) {
-          summaries[`act:${f.replace(".md", "")}`] = parseFrontmatter(readText(path.join(sumDir, "acts", f))).body;
-       }
-    }
+    // Act summaries have no verifiable source fingerprint; read them explicitly as notes.
     return summaries;
   }
 
@@ -83,7 +72,8 @@ export default function novelWriteExtension(pi: any) {
 
   function buildContextBlock(ctx: any) {
     const project = getProject();
-    if (!project) return "";
+    const selection = { bible: [] as string[], omittedBible: [] as string[], summaries: [] as string[], omittedSummaries: [] as string[] };
+    if (!project) return { block: "", ...selection };
     
     const budget = getContextBudget()!;
     let block = "[STORY CONTEXT]\n";
@@ -91,7 +81,7 @@ export default function novelWriteExtension(pi: any) {
     // Voice Profile Injection (select POV character's voice profile)
     // Assume current scene is derived from recent history or manually set.
     // For now, load default root voice profile if available.
-    const voiceProfilePath = path.join(project.rootPath, "bible", "voice-profile.md");
+    const voiceProfilePath = path.resolve(project.rootPath, project.config.settings.voiceProfilePath || "bible/voice-profile.md");
     if (fs.existsSync(voiceProfilePath)) {
       const vpText = readText(voiceProfilePath);
       if (estimateTokens(vpText) <= budget.voiceProfile) {
@@ -99,25 +89,22 @@ export default function novelWriteExtension(pi: any) {
       }
     }
 
-    // Bible Injection based on active characters/locations
-    // We scan project.scenes to find relevant frontmatter tags
+    // Include all supported bible types, in explicit priority order.
     const bibleEntries: string[] = [];
-    const biblePaths = [
-      path.join(project.rootPath, "bible", "characters"),
-      path.join(project.rootPath, "bible", "locations")
-    ];
     let bibleTokens = 0;
-    
-    for (const bpath of biblePaths) {
-      if (!fs.existsSync(bpath)) continue;
-      for (const file of fs.readdirSync(bpath)) {
-         if (!file.endsWith(".md")) continue;
-         const text = readText(path.join(bpath, file));
-         const toks = estimateTokens(text);
-         if (bibleTokens + toks <= budget.bible) {
-            bibleEntries.push(text);
-            bibleTokens += toks;
-         }
+    const priorities: Record<string, number> = { core: 0, secondary: 1, minor: 2 };
+    const entries = findAllBibleEntries(project.rootPath).sort((a, b) =>
+      (priorities[a.priority] ?? 1) - (priorities[b.priority] ?? 1) ||
+      a.name.localeCompare(b.name) || a.filePath.localeCompare(b.filePath));
+    for (const entry of entries) {
+      const text = readText(entry.filePath);
+      const toks = estimateTokens(text);
+      if (bibleTokens + toks <= budget.bible) {
+        bibleEntries.push(text);
+        bibleTokens += toks;
+        selection.bible.push(entry.name);
+      } else {
+        selection.omittedBible.push(entry.name);
       }
     }
     if (bibleEntries.length > 0) {
@@ -130,13 +117,15 @@ export default function novelWriteExtension(pi: any) {
     let summaryTokens = 0;
     
     // Tiered fallback: scene summaries first, then chapter summaries, then act summaries
-    const sceneKeys = Object.keys(summaries).filter(k => k.startsWith("scene:")).sort();
+    const sceneKeys = orderedScenes(project).reverse()
+      .map(s => `scene:${sceneKey(s.chapter, s.scene)}`).filter(key => key in summaries);
     for (const key of sceneKeys) {
        const txt = summaries[key];
        const toks = estimateTokens(txt);
        if (summaryTokens + toks <= budget.summaries) {
           summaryText += `[${key}] ${txt}\n`;
           summaryTokens += toks;
+          selection.summaries.push(key);
        }
        // skip entries that exceed budget; continue to next scene
     }
@@ -149,6 +138,7 @@ export default function novelWriteExtension(pi: any) {
           if (summaryTokens + toks <= budget.summaries) {
              summaryText += `[${key}] ${txt}\n`;
              summaryTokens += toks;
+             selection.summaries.push(key);
           }
        }
     }
@@ -169,44 +159,26 @@ export default function novelWriteExtension(pi: any) {
     }
 
     block += "[/STORY CONTEXT]\n";
-    return block;
+    selection.omittedSummaries = Object.keys(summaries).filter(key => !selection.summaries.includes(key));
+    return { block, ...selection };
   }
 
   // ─── Event Handlers ───────────────────────────────────────────────────
 
   pi.on("context", async (event: any, ctx: any) => {
-    // Strip old [STORY CONTEXT] blocks
-    if (event.messages) {
-      for (let i = 0; i < event.messages.length; i++) {
-        if (event.messages[i].content && typeof event.messages[i].content === "string") {
-          event.messages[i].content = event.messages[i].content.replace(/\[STORY CONTEXT\][\s\S]*?\[\/STORY CONTEXT\]\n?/g, "");
-        }
-      }
-    }
-    
-    const contextBlock = buildContextBlock(ctx);
-    
-    if (event.messages && event.messages.length > 0) {
-      if (event.messages[0].role === "system") {
-         event.messages[0].content = contextBlock + "\n" + event.messages[0].content;
-      } else {
-         event.messages.unshift({ role: "system", content: contextBlock });
-      }
-    }
-    return event;
-  });
-
-  pi.on("session_before_compact", async (event: any, ctx: any) => {
-    // Mark important messages for retention (preventing eviction from context history)
-    if (event.retain) {
-       // Typically, we would mark the voice profile, last scene, etc.
-       // e.g. event.retain(msg => msg.content.includes("VOICE PROFILE"));
-    }
+    const messages = event.messages.filter((m: any) => m.customType !== "novel-story-context");
+    const { block } = buildContextBlock(ctx);
+    if (block) messages.push({
+      role: "custom", customType: "novel-story-context",
+      content: block, display: false, timestamp: Date.now()
+    });
+    return { messages };
   });
 
   pi.on("agent_end", async (event: any, ctx: any) => {
-    if (ctx.getContextUsage && ctx.ui?.setFooter) {
+    if (ctx.hasUI && ctx.getContextUsage) {
       const usage = ctx.getContextUsage();
+      if (!usage) return;
       let footerStr = "";
       if (usage.percent > 80) {
         footerStr = `⚠️ Context warning: ${usage.percent}% full (${usage.tokens} tokens). Summaries may downgrade.`;
@@ -217,11 +189,35 @@ export default function novelWriteExtension(pi: any) {
       if (p && p.config.workflow === "discovery" && p.scenes.size >= 3) {
         footerStr += " | 💡 Tip: 3+ scenes drafted. Consider running the 'retroactive-outline' skill.";
       }
-      ctx.ui.setFooter((_ui: any, _theme: any) => new Text(footerStr, 0, 0));
+      ctx.ui.setStatus("novel-context", footerStr);
     }
   });
 
   // ─── Tools ─────────────────────────────────────────────────────────────
+
+  pi.registerTool({
+    name: "summary_read",
+    label: "Read Saved Summary",
+    description: "Read an existing scene or chapter summary without changing it. Freshness checks prose changes, not factual accuracy.",
+    parameters: Type.Object({
+      chapter: Type.Integer({ minimum: 1 }),
+      scene: Type.Optional(Type.Integer({ minimum: 1 }))
+    }),
+    execute: async (_id: string, params: any) => {
+      const p = getProject();
+      if (!p) throw new Error("No project loaded.");
+      const key = params.scene == null ? String(params.chapter).padStart(2, "0") : sceneKey(params.chapter, params.scene);
+      const file = path.join(p.rootPath, "summaries", params.scene == null ? "chapters" : "scenes", `${key}.md`);
+      if (!fs.existsSync(file)) return { content: [{ type: "text", text: `Summary missing: ${file}. Nothing changed.` }] };
+      const summary = parseFrontmatter(readText(file));
+      const scene = params.scene == null ? undefined : p.scenes.get(key);
+      const source = params.scene == null ? chapterSource(p, params.chapter) :
+        scene ? parseFrontmatter(readText(scene.filePath)).body : "";
+      const freshness = !source ? "orphan: no source prose" : summary.meta.hash === generateHash(source) ? "current" : "stale";
+      const output = truncateHead(summary.body);
+      return { content: [{ type: "text", text: `Source: ${file}\nFreshness: ${freshness} (not a factual review).\n${output.content}${output.truncated ? "\n[Truncated; use ordinary read-only access to the source for the rest.]" : ""}` }] };
+    }
+  });
 
   pi.registerTool({
     name: "draft_scene",
@@ -272,12 +268,7 @@ export default function novelWriteExtension(pi: any) {
       const s = p.scenes.get(`${String(params.chapter).padStart(2, "0")}-${String(params.scene).padStart(2, "0")}`);
       if (!s) return { content: [{ type: "text", text: `Scene not found.` }] };
       
-      let text = readText(s.filePath);
-      if (!text.includes(params.originalText)) {
-         return { content: [{ type: "text", text: `Error: originalText not found in the scene.` }] };
-      }
-      text = text.replace(params.originalText, params.newText);
-      writeText(s.filePath, text);
+      await replacePassage(params.chapter, params.scene, params.originalText, params.newText);
       return { content: [{ type: "text", text: `Passage rewritten successfully.` }] };
     }
   });
@@ -293,7 +284,7 @@ export default function novelWriteExtension(pi: any) {
       expandedText: Type.String()
     }),
     execute: async (_id: string, params: any) => {
-      // similar to rewrite
+      await replacePassage(params.chapter, params.scene, params.originalText, params.expandedText);
       return { content: [{ type: "text", text: `Passage expanded.` }] };
     }
   });
@@ -309,6 +300,7 @@ export default function novelWriteExtension(pi: any) {
       compressedText: Type.String()
     }),
     execute: async (_id: string, params: any) => {
+      await replacePassage(params.chapter, params.scene, params.originalText, params.compressedText);
       return { content: [{ type: "text", text: `Passage compressed.` }] };
     }
   });
@@ -347,7 +339,11 @@ export default function novelWriteExtension(pi: any) {
           const parsed = parseFrontmatter(raw);
           body = parsed.body;
         }
+      } else {
+        body = chapterSource(p, params.chapter);
+        if (!body) throw new Error(`Chapter ${params.chapter} has no drafted scenes.`);
       }
+      if (!params.summaryText.trim()) throw new Error("Summary text cannot be empty.");
 
       const hash = generateHash(body);
       const content = `---\nhash: ${hash}\n---\n${params.summaryText}`;
@@ -408,6 +404,8 @@ export default function novelWriteExtension(pi: any) {
         const chFile = path.join(p.rootPath, "summaries", "chapters", `${String(chNum).padStart(2, "0")}.md`);
         if (!fs.existsSync(chFile)) {
           stale.push(`chapter-${String(chNum).padStart(2, "0")} (missing chapter summary)`);
+        } else if (parseFrontmatter(readText(chFile)).meta.hash !== generateHash(chapterSource(p, chNum))) {
+          stale.push(`chapter-${String(chNum).padStart(2, "0")} (stale chapter summary)`);
         }
       }
 
@@ -452,7 +450,7 @@ export default function novelWriteExtension(pi: any) {
       if (chapterMatch) {
         const chapterNum = parseInt(chapterMatch[1], 10);
         if (chapterNum < 1) {
-          pi.sendMessage({ customType: "markdown", content: "Chapter number must be 1 or greater.", display: { title: "Error", isSummary: true } });
+          pi.sendMessage({ customType: "markdown", content: "Chapter number must be 1 or greater.", display: true });
           return;
         }
         pi.sendUserMessage(
@@ -468,7 +466,7 @@ export default function novelWriteExtension(pi: any) {
         const chapterNum = parseInt(sceneMatch[1], 10);
         const sceneNum   = parseInt(sceneMatch[2], 10);
         if (chapterNum < 1 || sceneNum < 1) {
-          pi.sendMessage({ customType: "markdown", content: "Chapter and scene numbers must be 1 or greater.", display: { title: "Error", isSummary: true } });
+          pi.sendMessage({ customType: "markdown", content: "Chapter and scene numbers must be 1 or greater.", display: true });
           return;
         }
         pi.sendUserMessage(
@@ -483,7 +481,7 @@ export default function novelWriteExtension(pi: any) {
         pi.sendMessage({
           customType: "markdown",
           content: "Unknown arguments. Usage:\n- `/PNW-summarize` — refresh all stale summaries\n- `/PNW-summarize 1 2` — summarize Chapter 1, Scene 2\n- `/PNW-summarize chapter 1` — summarize Chapter 1",
-          display: { title: "Error", isSummary: true }
+          display: true
         });
         return;
       }
@@ -491,7 +489,7 @@ export default function novelWriteExtension(pi: any) {
       // ── Branch: batch mode ─────────────────────────────────────────────────
       const p = getProject();
       if (!p) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
@@ -539,6 +537,8 @@ export default function novelWriteExtension(pi: any) {
         const chFile = path.join(p.rootPath, "summaries", "chapters", `${String(chNum).padStart(2, "0")}.md`);
         if (!fs.existsSync(chFile)) {
           staleList.push(`chapter-${String(chNum).padStart(2, "0")} (missing chapter summary)`);
+        } else if (parseFrontmatter(readText(chFile)).meta.hash !== generateHash(chapterSource(p, chNum))) {
+          staleList.push(`chapter-${String(chNum).padStart(2, "0")} (stale chapter summary)`);
         }
       }
 
@@ -546,7 +546,7 @@ export default function novelWriteExtension(pi: any) {
         pi.sendMessage({
           customType: "markdown",
           content: "All summaries are up to date.",
-          display: { title: "Summarize", isSummary: true }
+          display: true
         });
         return;
       }
@@ -558,7 +558,7 @@ export default function novelWriteExtension(pi: any) {
       pi.sendMessage({
         customType: "markdown",
         content: `Found ${count} ${count === 1 ? "summary" : "summaries"} that need updating:\n\n${displayLines}`,
-        display: { title: "Summarize", isSummary: true }
+        display: true
       });
 
       // AI instruction: build parameter list and trigger AI action in next turn
@@ -592,7 +592,25 @@ export default function novelWriteExtension(pi: any) {
       query: Type.String()
     }),
     execute: async (_id: string, params: any) => {
-      return { content: [{ type: "text", text: `Context logic invoked for: ${params.query}` }] };
+      const p = getProject();
+      if (!p) throw new Error("No project loaded.");
+      const matches: string[] = [];
+      const walk = (dir: string) => {
+        if (!fs.existsSync(dir)) return;
+        for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+          const file = path.join(dir, item.name);
+          if (item.isDirectory()) walk(file);
+          else if (item.isFile() && item.name.endsWith(".md")) {
+            const text = readText(file);
+            if (text.toLowerCase().includes(params.query.toLowerCase())) {
+              matches.push(`Source: ${file}\n${text}`);
+            }
+          }
+        }
+      };
+      walk(path.join(p.rootPath, "bible"));
+      const output = truncateHead(matches.join("\n\n") || "No matching bible entries.");
+      return { content: [{ type: "text", text: output.content + (output.truncated ? "\n[Truncated; read the listed sources directly.]" : "") }] };
     }
   });
 
@@ -601,8 +619,9 @@ export default function novelWriteExtension(pi: any) {
     label: "Context Summary",
     description: "Print current context usage breakdown.",
     parameters: Type.Object({}),
-    execute: async () => {
-      return { content: [{ type: "text", text: `Context successfully measured.` }] };
+    execute: async (_id: string, _params: any, _signal: any, _onUpdate: any, ctx: any) => {
+      const { block, ...selection } = buildContextBlock(ctx);
+      return { content: [{ type: "text", text: JSON.stringify({ usage: ctx.getContextUsage(), budgets: getContextBudget(), storyContextEstimatedTokens: estimateTokens(block), selection, note: "Omitted summaries lists only fresh summaries not selected. Stale/missing summaries are excluded; use novel_summary_refresh to check them. Selection is not factual validation." }) }] };
     }
   });
 
@@ -611,22 +630,51 @@ export default function novelWriteExtension(pi: any) {
     label: "Budget Report",
     description: "Show context boundaries.",
     parameters: Type.Object({}),
-    execute: async (_id: string, ctx: any) => {
-      let usage = {};
-      if (ctx.getContextUsage) usage = ctx.getContextUsage();
-      return { content: [{ type: "text", text: `Budget report: ${JSON.stringify(usage)}` }] };
+    execute: async (_id: string, _params: any, _signal: any, _onUpdate: any, ctx: any) => {
+      return { content: [{ type: "text", text: JSON.stringify({ usage: ctx.getContextUsage(), budgets: getContextBudget() }) }] };
     }
   });
 
   pi.registerTool({
     name: "novel_character_knowledge",
     label: "Character Knowledge",
-    description: "Determine what a character knows based on prior summaries.",
+    description: "Read only a matching actual character record, or use chapter AND scene for evidence involving that character up to and including that scene. Evidence requires interpretation; it is not a knowledge verdict.",
     parameters: Type.Object({
-      character: Type.String()
+      character: Type.String(),
+      chapter: Type.Optional(Type.Integer({ minimum: 1 })),
+      scene: Type.Optional(Type.Integer({ minimum: 1 }))
     }),
     execute: async (_id: string, params: any) => {
-      return { content: [{ type: "text", text: `Querying knowledge base for ${params.character}...` }] };
+      const p = getProject();
+      if (!p) throw new Error("No project loaded.");
+      if ((params.chapter == null) !== (params.scene == null)) throw new Error("Provide both chapter and scene for a knowledge cutoff.");
+      const entry = findAllBibleEntries(p.rootPath).find(e => e.type === "character" &&
+        [e.name, ...e.aliases].some(n => normalizeKey(n) === normalizeKey(params.character)));
+      const names = new Set([params.character, ...(entry ? [entry.name, ...entry.aliases] : [])].map(normalizeKey));
+      let evidence = "";
+      if (params.chapter != null) {
+        const scenes = orderedScenes(p);
+        const end = scenes.findIndex(s => s.chapter === params.chapter && s.scene === params.scene);
+        if (end < 0) throw new Error("The cutoff scene does not exist.");
+        const summaries = loadSummaries(p);
+        for (const s of scenes.slice(0, end + 1)) {
+          if (s.status === "outline" || ![s.pov, ...(s.characters_present || [])].some(n => names.has(normalizeKey(n || "")))) continue;
+          const key = sceneKey(s.chapter, s.scene);
+          const summary = summaries[`scene:${key}`];
+          const file = summary ? path.join(p.rootPath, "summaries", "scenes", `${key}.md`) : s.filePath;
+          evidence += `\nSource: ${file}\nScene ${key} (${summary ? "current summary, not fact-checked" : "prose; no current summary"}):\n${summary || parseFrontmatter(readText(s.filePath)).body}\n`;
+        }
+        evidence ||= "No matching character-tagged scenes through this cutoff. Check scene participants; absence is unknown.";
+      } else {
+        const file = path.join(p.rootPath, "continuity", "character-states.json");
+        const data = fs.existsSync(file) ? JSON.parse(readText(file)) : {};
+        const records = data.actual ?? data.characters ?? data;
+        const match = Object.keys(records).find(n => names.has(normalizeKey(n)));
+        evidence = match ? `Source: ${file}\n${JSON.stringify({ [match]: records[match] }, null, 2)}` :
+          `No matching actual character record for ${params.character}. Planned records were not used.`;
+      }
+      const output = truncateHead(evidence);
+      return { content: [{ type: "text", text: `Evidence for ${entry?.name || params.character}${params.chapter != null ? ` through ${params.chapter}.${params.scene}; latest mixed-state ledger excluded` : " (latest saved record, which may contain historical fields)"}.\nAbsence is unknown, not proof of ignorance. A scene can contain facts the character did not learn; verify viewpoint, disclosure and summary accuracy against prose. This lookup does not remove future information elsewhere in the conversation.\n${output.content}${output.truncated ? "\n[Truncated; read the listed sources in smaller parts before concluding.]" : ""}` }] };
     }
   });
 

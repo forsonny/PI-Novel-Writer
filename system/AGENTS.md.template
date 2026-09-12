@@ -11,7 +11,7 @@
      dialogue style, narrative distance, how you handle interiority, etc.
      The AI will use this to match your voice when generating prose. -->
 
-*Not yet configured. Use the `voice-match` skill to generate this automatically from a writing sample.*
+*Not yet configured. The voice-matching workflow writes `bible/voice-profile.md`; it does not fill this section automatically. Add notes here manually only if you want them duplicated.*
 
 ## Key Rules
 <!-- World rules, magic system constraints, character rules, or any absolutes

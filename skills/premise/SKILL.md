@@ -26,16 +26,16 @@ Once the core elements are established, help the user draft a compelling logline
 ### Step 3: Finalizing the Premise
 When the user approves the logline and premise details, generate a comprehensive summary.
 
-You must then use the `pi` tool (or standard file creation tools) to save this information:
+Save this information with the available project file tools:
 
-1.  **Create `outline/premise.md`:** Write a structured markdown file containing:
+1.  **Create `premise.md` at the project root:** Write a structured markdown file containing:
     *   **Logline:** The approved logline.
     *   **Genre & Tone:** The selected genre and tonal keywords.
     *   **Core Characters:** Brief summaries of the protagonist and antagonist.
     *   **Central Conflict:** Explanation of the internal and external conflicts.
     *   **Stakes:** Clear definition of what is at risk.
 
-2.  **Update `AGENTS.md` (if it exists, otherwise create it in `.pi/AGENTS.md`):** 
+2.  **Update `.pi/AGENTS.md` (preserve the existing file, creating it only if absent):**
     *   Add or update a section in the agent instructions that summarizes the core premise. This ensures that in all future sessions, the AI remembers what the story is about.
     *   *Self-Correction: Make sure to read the existing `.pi/AGENTS.md` first before overwriting to append the premise context safely.*
 

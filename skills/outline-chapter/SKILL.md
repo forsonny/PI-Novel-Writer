@@ -32,8 +32,9 @@ Draft the beats for each scene. A strong scene card should include:
 *   **Shift:** The emotional or narrative change (e.g., Hopeful -> Hopeless).
 
 ### Step 4: Documentation (Action Phase)
-Once the user approves the scene breakdown, use the PI outline tools to update the chapter:
-1.  **Update Chapter Meta:** If the overall purpose or emotional arc of the chapter evolved, use `outline_chapter_update` (or recreate via `outline_chapter_create` to preserve data) to update the high-level summary.
-2.  **Save Scene Cards:** Use `outline_scene_card_create` sequentially for each scene (Scene 1, Scene 2, etc.) to inject the detailed beats you developed in Step 3 into the chapter outline file.
+Once the user approves the scene breakdown, use the Pi outline tools to update the chapter:
+1.  **Update Chapter:** Use `outline_chapter_update` for the body and, when needed, optional `title`, `timeline`, and `scenes` metadata. Do not recreate the chapter merely to change metadata.
+2.  **Save Scene Cards:** Use `outline_scene_card_create` sequentially. It keeps the stored scene count at least as high as the card number.
+3.  **Reconcile:** If drafting changed dates, counts, custody, resources or event order, update the current header, card, master plan and actual records together. Clearly label or archive superseded plans; future cards are not canon.
 
 **Important Note:** Confirm the save with the user by outputting a brief summary: "Successfully saved 3 scene cards to Chapter 5's outline."

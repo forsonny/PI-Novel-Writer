@@ -3,10 +3,10 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import { Type } from "@sinclair/typebox";
-import { Box, Text, Container, Spacer, truncateToWidth } from "@mariozechner/pi-tui";
+import { Type } from "typebox";
+import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { readText, writeText } from "./utils/platform.ts";
-import { getProject } from "./novel-core.ts";
+import { getProject, refreshProject, orderedScenes } from "./novel-core.ts";
 
 function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -20,7 +20,7 @@ function parseFrontmatter(content: string): { meta: Record<string, any>; body: s
   return { meta: {}, body };
 }
 
-async function compileManuscriptInternal(project: any) {
+export function compileManuscriptInternal(project: any) {
   const compiledLines: string[] = [];
 
   // Add Pandoc YAML metadata block
@@ -31,10 +31,7 @@ async function compileManuscriptInternal(project: any) {
   compiledLines.push("---");
   compiledLines.push("");
 
-  const sortedScenes = [...project.scenes.values()].sort((a: any, b: any) => {
-    if (a.chapter !== b.chapter) return a.chapter - b.chapter;
-    return a.scene - b.scene;
-  });
+  const sortedScenes = orderedScenes(project);
 
   let currentChapter = -1;
 
@@ -119,7 +116,7 @@ export default function novelExportExtension(pi: any) {
     description: "Compile all scenes into a single ordered markdown file, sorting by canonical order and adding headings.",
     parameters: Type.Object({}),
     execute: async () => {
-      const project = getProject();
+      const project = refreshProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded. Run /PNW-init first." }] };
 
       const outputPath = await compileManuscriptInternal(project);
@@ -147,7 +144,7 @@ export default function novelExportExtension(pi: any) {
         
         ensureDir(path.dirname(outputPath));
 
-        const cmdResult = await pi.exec("bash", ["-c", `pandoc "${inputPath}" -o "${outputPath}"`]);
+        const cmdResult = await pi.exec("pandoc", [inputPath, "-o", outputPath]);
         if (cmdResult.code !== 0) {
            return { content: [{ type: "text", text: `Pandoc conversion failed: \n${cmdResult.stderr || cmdResult.stdout}` }] };
         }
@@ -162,21 +159,21 @@ export default function novelExportExtension(pi: any) {
   pi.registerCommand("PNW-compile", {
     description: "Compile manuscript into a single file and attempt export to DOCX",
     handler: async (_args: string, _ctx: any) => {
-      const project = getProject();
+      const project = refreshProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
-      pi.sendMessage({ customType: "markdown", content: "Compiling manuscript...", display: { title: "Compile", isSummary: true } });
+      pi.sendMessage({ customType: "markdown", content: "Compiling manuscript...", display: true });
       const mdPath = await compileManuscriptInternal(project);
-      pi.sendMessage({ customType: "markdown", content: `Compiled manuscript saved to: ${mdPath}`, display: { title: "Compile", isSummary: true } });
+      pi.sendMessage({ customType: "markdown", content: `Compiled manuscript saved to: ${mdPath}`, display: true });
 
       const docxPath = mdPath.replace(/\.md$/, ".docx");
 
       let hasPandoc = false;
       try {
-        const checkRes = await pi.exec("bash", ["-c", "which pandoc || where pandoc"]);
+        const checkRes = await pi.exec("pandoc", ["--version"]);
         if (checkRes.code === 0 && checkRes.stdout?.trim()) {
            hasPandoc = true;
         }
@@ -188,20 +185,20 @@ export default function novelExportExtension(pi: any) {
         pi.sendMessage({
           customType: "novel-compile",
           content: "Compilation finished. Missing pandoc.",
-          display: { title: "Compile", isSummary: false },
-          details: { success: true, mdPath, hasPandoc: false }
+          display: true,
+          details: { success: true, mdPath, pandocMissing: true }
         });
         return;
       }
 
-      pi.sendMessage({ customType: "markdown", content: "Exporting to DOCX via Pandoc...", display: { title: "Compile", isSummary: true } });
+      pi.sendMessage({ customType: "markdown", content: "Exporting to DOCX via Pandoc...", display: true });
       try {
-        const cmdResult = await pi.exec("bash", ["-c", `pandoc "${mdPath}" -o "${docxPath}"`]);
+        const cmdResult = await pi.exec("pandoc", [mdPath, "-o", docxPath]);
         if (cmdResult.code !== 0) {
            pi.sendMessage({
              customType: "novel-compile",
              content: `Compilation finished with pandoc error.`,
-             display: { title: "Compile Failed", isSummary: false },
+             display: true,
              details: { success: true, mdPath, hasPandoc: true, error: cmdResult.stderr || cmdResult.stdout }
            });
            return;
@@ -209,14 +206,14 @@ export default function novelExportExtension(pi: any) {
         pi.sendMessage({
           customType: "novel-compile",
           content: `Compilation finished successfully.`,
-          display: { title: "Compile Success", isSummary: false },
-          details: { success: true, mdPath, hasPandoc: true, docxPath }
+          display: true,
+          details: { success: true, mdPath, docxSuccess: true, docxPath }
         });
       } catch (err: any) {
         pi.sendMessage({
           customType: "novel-compile",
           content: `Compilation finished with exception.`,
-          display: { title: "Compile Error", isSummary: false },
+          display: true,
           details: { success: true, mdPath, hasPandoc: true, error: err.message }
         });
       }

@@ -3,8 +3,9 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import { Type } from "@sinclair/typebox";
-import { Box, Text, Container, Spacer, truncateToWidth } from "@mariozechner/pi-tui";
+import { Type } from "typebox";
+import { createLocalBashOperations } from "@earendil-works/pi-coding-agent";
+import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { getProject } from "./novel-core.ts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -168,10 +169,15 @@ function autoCommitMessage(statusOutput: string): string {
 
 // ─── Git execution helper ────────────────────────────────────────────────────
 
-async function gitExec(pi: any, cwd: string, command: string): Promise<{ code: number; stdout: string; stderr: string }> {
-  // Convert Windows backslashes to forward slashes — Git Bash accepts these
-  const gitCwd = cwd.replace(/\\/g, "/");
-  return pi.exec("bash", ["-c", `cd "${gitCwd}" && ${command}`]);
+async function gitExec(_pi: any, cwd: string, command: string): Promise<{ code: number; stdout: string; stderr: string }> {
+  // Use the same resolved shell as Pi's working bash tool. Bare "bash" can select
+  // Windows' WSL launcher instead of Git Bash and fail to enter a Windows cwd.
+  let output = "";
+  const result = await createLocalBashOperations().exec(command, cwd, {
+    onData: data => { output += data.toString(); }
+  });
+  const code = result.exitCode ?? 1;
+  return { code, stdout: code === 0 ? output : "", stderr: code === 0 ? "" : output };
 }
 
 // ─── Extension ───────────────────────────────────────────────────────────────
@@ -263,14 +269,18 @@ export default function novelGithubExtension(pi: any) {
       const project = getProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
 
+      const rootRes = await gitExec(pi, project.rootPath, "git rev-parse --show-toplevel");
+      if (rootRes.code !== 0) throw new Error(rootRes.stderr.trim() || "No readable Git repository found.");
       const branchRes = await gitExec(pi, project.rootPath, "git rev-parse --abbrev-ref HEAD 2>/dev/null");
       const remoteRes = await gitExec(pi, project.rootPath, "git remote get-url origin 2>/dev/null");
       const logRes = await gitExec(pi, project.rootPath, "git log -1 --format='%h %s' 2>/dev/null");
       const statusRes = await gitExec(pi, project.rootPath, "git status --short 2>/dev/null");
+      if (statusRes.code !== 0) throw new Error(statusRes.stderr.trim() || "Git status failed; repository cleanliness is unknown.");
 
       const uncommittedLines = statusRes.stdout.trim().split("\n").filter(Boolean);
 
       const result = {
+        repositoryRoot: rootRes.stdout.trim(),
         branch: branchRes.code === 0 ? branchRes.stdout.trim() : null,
         remote: remoteRes.code === 0 ? sanitizeUrl(remoteRes.stdout.trim()) : null,
         lastCommit: logRes.code === 0 ? logRes.stdout.trim() : null,
@@ -435,13 +445,13 @@ export default function novelGithubExtension(pi: any) {
     handler: async (_args: string, _ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "GitHub Status", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
       const config = loadGithubConfig(project.rootPath);
       if (!config) {
-        pi.sendMessage({ customType: "markdown", content: "GitHub not configured. Run the `github-setup` skill to get started.", display: { title: "GitHub Status", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "GitHub not configured. Run the `github-setup` skill to get started.", display: true });
         return;
       }
 
@@ -453,7 +463,7 @@ export default function novelGithubExtension(pi: any) {
         pi.sendMessage({
           customType: "novel-github-status",
           content: "GitHub Status",
-          display: { title: "GitHub Status", isSummary: false },
+          display: true,
           details: { error: "No git repository found. Run /PNW-github-connect to initialize." }
         });
         return;
@@ -464,7 +474,7 @@ export default function novelGithubExtension(pi: any) {
       pi.sendMessage({
         customType: "novel-github-status",
         content: "GitHub Status",
-        display: { title: "GitHub Status", isSummary: false },
+        display: true,
         details: {
           branch: branchRes.stdout.trim(),
           remote: config.remote,
@@ -499,31 +509,31 @@ export default function novelGithubExtension(pi: any) {
             "",
             "Need help? Run the `github-setup` skill for a full walkthrough."
           ].join("\n"),
-          display: { title: "GitHub Connect", isSummary: false }
+          display: true
         });
         return;
       }
       if (!url.startsWith("https://")) {
-        pi.sendMessage({ customType: "markdown", content: "Only HTTPS URLs are supported (e.g. https://github.com/owner/repo.git).", display: { title: "GitHub Connect", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "Only HTTPS URLs are supported (e.g. https://github.com/owner/repo.git).", display: true });
         return;
       }
 
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "GitHub Connect", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
       const config = loadGithubConfig(project.rootPath);
       if (!config?.token) {
-        pi.sendMessage({ customType: "markdown", content: "No token set. Call `novel_github_token_set` with your GitHub PAT first.", display: { title: "GitHub Connect", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No token set. Call `novel_github_token_set` with your GitHub PAT first.", display: true });
         return;
       }
 
       const branch = config.branch || "main";
       const authenticatedUrl = url.replace("https://", `https://${config.token}@`);
 
-      pi.sendMessage({ customType: "markdown", content: `Connecting to ${sanitizeUrl(url)}...`, display: { title: "GitHub Connect", isSummary: true } });
+      pi.sendMessage({ customType: "markdown", content: `Connecting to ${sanitizeUrl(url)}...`, display: true });
 
       await gitExec(pi, project.rootPath, "git init");
 
@@ -536,7 +546,7 @@ export default function novelGithubExtension(pi: any) {
       await gitExec(pi, project.rootPath, "git add -A");
       const connectCommitRes = await gitExec(pi, project.rootPath, `git commit -m "Initial commit" --allow-empty`);
       if (connectCommitRes.code !== 0) {
-        pi.sendMessage({ customType: "markdown", content: `Commit failed: ${connectCommitRes.stderr}`, display: { title: "GitHub Connect", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: `Commit failed: ${connectCommitRes.stderr}`, display: true });
         return;
       }
 
@@ -553,14 +563,14 @@ export default function novelGithubExtension(pi: any) {
       }
 
       if (pushRes.code !== 0) {
-        pi.sendMessage({ customType: "markdown", content: `Push failed: ${sanitizeUrl(pushRes.stderr)}`, display: { title: "GitHub Connect", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: `Push failed: ${sanitizeUrl(pushRes.stderr)}`, display: true });
         return;
       }
 
       saveGithubConfig(project.rootPath, { token: config.token, remote: url, branch });
       ensureGitignoreEntry(project.rootPath, ".pi/github.json");
 
-      pi.sendMessage({ customType: "markdown", content: `Connected to ${sanitizeUrl(url)} on branch "${branch}". Run /PNW-github to verify.`, display: { title: "GitHub Connected", isSummary: false } });
+      pi.sendMessage({ customType: "markdown", content: `Connected to ${sanitizeUrl(url)} on branch "${branch}". Run /PNW-github to verify.`, display: true });
     }
   });
 
@@ -570,13 +580,13 @@ export default function novelGithubExtension(pi: any) {
     handler: async (args: string, _ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "GitHub Push", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
       const config = loadGithubConfig(project.rootPath);
       if (!config?.token || !config?.remote) {
-        pi.sendMessage({ customType: "markdown", content: "Not connected to GitHub. Run `/PNW-github-connect <url>` first.", display: { title: "GitHub Push", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "Not connected to GitHub. Run `/PNW-github-connect <url>` first.", display: true });
         return;
       }
 
@@ -591,7 +601,7 @@ export default function novelGithubExtension(pi: any) {
         pi.sendMessage({
           customType: "markdown",
           content: "Nothing to push — your working tree is clean. All changes are already on GitHub.",
-          display: { title: "GitHub Push", isSummary: true }
+          display: true
         });
         return;
       }
@@ -606,17 +616,17 @@ export default function novelGithubExtension(pi: any) {
       const commitRes = await gitExec(pi, project.rootPath, `git commit -m '${escapedMsg}'`);
       if (commitRes.code !== 0) {
         if (commitRes.stdout.includes("nothing to commit") || commitRes.stderr.includes("nothing to commit")) {
-          pi.sendMessage({ customType: "markdown", content: "Nothing to push — working tree is clean.", display: { title: "GitHub Push", isSummary: true } });
+          pi.sendMessage({ customType: "markdown", content: "Nothing to push — working tree is clean.", display: true });
           return;
         }
-        pi.sendMessage({ customType: "markdown", content: `Commit failed: ${commitRes.stderr}`, display: { title: "GitHub Push", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: `Commit failed: ${commitRes.stderr}`, display: true });
         return;
       }
 
       await gitExec(pi, project.rootPath, `git remote set-url origin "${authenticatedUrl}"`);
       const pushRes = await gitExec(pi, project.rootPath, `git push origin "${config.branch}"`);
       if (pushRes.code !== 0) {
-        pi.sendMessage({ customType: "markdown", content: `Push failed: ${sanitizeUrl(pushRes.stderr)}`, display: { title: "GitHub Push", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: `Push failed: ${sanitizeUrl(pushRes.stderr)}`, display: true });
         return;
       }
 
@@ -625,7 +635,7 @@ export default function novelGithubExtension(pi: any) {
       pi.sendMessage({
         customType: "markdown",
         content: `Pushed commit \`${hash}\`: "${commitMessage}"`,
-        display: { title: "GitHub Push", isSummary: false }
+        display: true
       });
     }
   });
@@ -636,13 +646,13 @@ export default function novelGithubExtension(pi: any) {
     handler: async (_args: string, _ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "GitHub Pull", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
       const config = loadGithubConfig(project.rootPath);
       if (!config?.token || !config?.remote) {
-        pi.sendMessage({ customType: "markdown", content: "Not connected to GitHub. Run /PNW-github-connect first.", display: { title: "GitHub Pull", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "Not connected to GitHub. Run /PNW-github-connect first.", display: true });
         return;
       }
 
@@ -653,11 +663,11 @@ export default function novelGithubExtension(pi: any) {
       const output = sanitizeUrl((pullRes.stdout + pullRes.stderr).trim());
 
       if (pullRes.code !== 0) {
-        pi.sendMessage({ customType: "markdown", content: `Pull failed:\n\n\`\`\`\n${output}\n\`\`\``, display: { title: "GitHub Pull", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: `Pull failed:\n\n\`\`\`\n${output}\n\`\`\``, display: true });
         return;
       }
 
-      pi.sendMessage({ customType: "markdown", content: output || "Already up to date.", display: { title: "GitHub Pull", isSummary: false } });
+      pi.sendMessage({ customType: "markdown", content: output || "Already up to date.", display: true });
     }
   });
 
@@ -668,7 +678,7 @@ export default function novelGithubExtension(pi: any) {
       const parts = args.trim().split(/\s+/);
       const url = parts[0];
       if (!url) {
-        pi.sendMessage({ customType: "markdown", content: "Usage: `/PNW-github-clone <https://github.com/owner/repo.git> [dirname]`", display: { title: "GitHub Clone", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "Usage: `/PNW-github-clone <https://github.com/owner/repo.git> [dirname]`", display: true });
         return;
       }
 
@@ -685,12 +695,12 @@ export default function novelGithubExtension(pi: any) {
       const config = project ? loadGithubConfig(project.rootPath) : null;
       const cloneUrl = config?.token ? url.replace("https://", `https://${config.token}@`) : url;
 
-      pi.sendMessage({ customType: "markdown", content: `Cloning ${sanitizeUrl(url)} into ${targetDir}...`, display: { title: "GitHub Clone", isSummary: true } });
+      pi.sendMessage({ customType: "markdown", content: `Cloning ${sanitizeUrl(url)} into ${targetDir}...`, display: true });
 
       const cloneRes = await gitExec(pi, cwd, `git clone "${cloneUrl}" "${targetDir}"`);
 
       if (cloneRes.code !== 0) {
-        pi.sendMessage({ customType: "markdown", content: `Clone failed:\n\n\`\`\`\n${sanitizeUrl(cloneRes.stderr)}\n\`\`\``, display: { title: "GitHub Clone", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: `Clone failed:\n\n\`\`\`\n${sanitizeUrl(cloneRes.stderr)}\n\`\`\``, display: true });
         return;
       }
 
@@ -703,7 +713,7 @@ export default function novelGithubExtension(pi: any) {
           "To load this as your active project, run:",
           `\`/PNW-load ${sanitizedPath}\``
         ].join("\n"),
-        display: { title: "GitHub Clone", isSummary: false }
+        display: true
       });
     }
   });

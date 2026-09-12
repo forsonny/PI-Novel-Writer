@@ -10,7 +10,7 @@ This skill focuses on improving the prose itself: sentence-level rhythm, show vs
 ## Workflow
 
 1. **Read Scene**: Use `novel_scene_read` to load the current text.
-2. **Analyze Dialogue**: Run `analyze_dialogue` if the scene contains heavy conversations to check for tag repetition or adverb overuse.
+2. **Analyze Dialogue**: Run `analyze_dialogue` if useful; it loads prose for contextual assessment and does not compute tag statistics.
 3. **Refine Prose**: Look for opportunities to:
    - Convert telling into showing.
    - Vary sentence lengths and rhythm.
@@ -18,4 +18,4 @@ This skill focuses on improving the prose itself: sentence-level rhythm, show vs
    - Eliminate clichés.
 4. **Execute Edits**: 
    - For small sentence swaps, use `edit_line`.
-   - For overall suggestions that need author approval, use `edit_suggest`.
+   - In supervised work, use `edit_suggest` when author approval is needed. In an authorized autonomous run, apply justified changes directly while preserving meaning and prior prose.

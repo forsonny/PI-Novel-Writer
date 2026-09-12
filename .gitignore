@@ -3,3 +3,6 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+tests/
+test-runs/
+.pi-metacore-project.json

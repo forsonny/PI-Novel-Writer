@@ -10,6 +10,7 @@ export function readText(filePath: string): string {
 
 // Write LF-only (never CRLF), with EBUSY retry for Windows file locking
 export function writeText(filePath: string, content: string, maxRetries = 3): void {
+  ensureDir(path.dirname(filePath));
   const tmpPath = filePath + ".tmp";
   const data = content.replace(/\r\n/g, "\n");
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -24,8 +25,7 @@ export function writeText(filePath: string, content: string, maxRetries = 3): vo
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
         continue;
       }
-      // Clean up temp file on final failure
-      try { fs.unlinkSync(tmpPath); } catch {}
+      // Retain the temporary file on failure so unsaved work can be recovered.
       throw err;
     }
   }

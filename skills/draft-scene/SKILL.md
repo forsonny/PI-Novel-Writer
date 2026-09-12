@@ -8,18 +8,21 @@ description: "Workflow to generate a first draft from a scene outline"
 This skill guides the AI through drafting a complete scene from an outline.
 
 ## Prerequisites
-- The scene must exist as a file in `manuscript/chapters/` with valid frontmatter.
+- Use `novel_project_info` to confirm the format, then `novel_scene_list` to confirm the target exists.
+- Novel and novella scenes live under `manuscript/chapters/`; short-story scenes live under `manuscript/scenes/`; flash fiction uses `manuscript/story.md` as its single scene.
 
 ## Workflow
 
-1. **Read Scene Card**: Use the `novel_scene_read` tool to load the scene outline.
+1. **Read the Target**: Prefer `novel_scene_list` and `novel_scene_read` over assuming a path. Use `outline_chapter_read` for the applicable scene card or outline. For short stories and flash fiction, action parameters use chapter 1 even though the manuscript has no narrative chapters. In an active autonomous run, also read its saved next action and continuity records; do not ask for milestone approval.
 2. **Context Injection**:
-   - The PI engine automatically injects the voice profile, bible entries (based on characters in scene), and tiered summaries via the `context` event.
+   - Automatic context is bounded. Use `context_summary` to see selected/omitted bible entries and selected summaries. Explicitly read the current voice, relevant bible entries, earlier prose and fresh summaries.
+   - Use `summary_read` for inspection without rewriting. Freshness is not factual accuracy. Use bounded `novel_character_knowledge` evidence for the POV cutoff, but do not treat every fact in it as known or assume it removes later information already in conversation.
    - If you need additional specific context, use the `context_inject` tool.
 3. **Verify Budget**: Read the `context_budget_report` to ensure you have enough tokens.
 4. **Draft**: 
    - Generate the prose.
-   - For large scenes (>4000 words), stream the output logically using `novel_scene_write`. 
+   - `novel_scene_write` replaces the whole body, not appends. Supply the complete scene or read and combine existing prose before writing a continuation.
    - Follow the voice profile strictly.
-5. **Discovery Mode Variant**: If the project workflow is marked as "discovery" and no detailed scene card exists, use the `continue_writing` tool to get the tail end of the last scene, then proceed with a freeform prompt to draft what happens next.
+5. **Discovery Mode Variant**: If the project workflow is marked as "discovery" and no detailed scene card exists, use `continue_writing` only to retrieve the current ending. Draft the continuation, combine it with the complete existing body, then call `novel_scene_write` once with the complete updated body. `continue_writing` does not append or save prose.
 6. **Update Status**: Use `novel_scene_status` to change the scene status from `outline` to `draft`.
+7. **Integrate**: Reconstruct what changed from the actual prose. Save `summary_generate`, update consequential continuity and later scene dependencies, and record discoveries separately from planned facts. Reconcile changed dates, counts, custody, resources and event order in the applicable outline, scene card, master plan and actual records. Label superseded plans; never promote future plans to canon.

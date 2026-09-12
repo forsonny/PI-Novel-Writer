@@ -43,4 +43,4 @@ When writing the `content` parameter for the tool, ensure it includes clear, des
 *   `## Speech Patterns / Voice`
     *   *Crucial:* This section must explicitly describe how the AI should write dialogue for this character in the future. Give concrete rules (e.g., "Uses short, clipped sentences. Never uses contractions. Frequently references nautical terms.")
 
-Always confirm the generated profile summary with the user before writing the file.
+In supervised work, confirm the profile before saving. In an authorized autonomous run, make the delegated choice, record its basis, and save without milestone approval.

@@ -10,7 +10,7 @@ This skill acts as the final polish stage, catching objective errors and formatt
 ## Workflow
 
 1. **Read Scene**: Use `novel_scene_read`.
-2. **Analyze Readability**: Run `analyze_readability` to check for overly complex or run-on sentences.
+2. **Analyze Readability**: Run `analyze_readability` to load the prose and review task. Judge clarity in context; it does not compute a grade-level score.
 3. **Proofread**: Scan the text specifically for:
    - Typos, grammar mistakes, and spelling errors.
    - Formatting issues (e.g., missing quotes, mismatched em dashes).

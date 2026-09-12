@@ -3,69 +3,12 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import { Type } from "@sinclair/typebox";
-import { Box, Text, Container, Spacer, truncateToWidth } from "@mariozechner/pi-tui";
+import { Type } from "typebox";
+import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { readText, writeText, resolvePath, pathsEqual, normalizeKey, toSafeFilename, validateFilename } from "./utils/platform.ts";
-import { getProject } from "./novel-core.ts";
+import { getProject, parseFrontmatter, buildFrontmatter } from "./novel-core.ts";
 
 // ─── Shared Utilities ─────────────────────────────────────────────────────────
-
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
-
-function parseFrontmatter(content: string): { meta: Record<string, any>; body: string } {
-  const match = content.match(FRONTMATTER_RE);
-  if (!match) return { meta: {}, body: content };
-  const rawYaml = match[1];
-  const body = content.slice(match[0].length);
-  // Simple YAML parser
-  const meta: Record<string, any> = {};
-  let currentKey = "";
-  let inArray = false;
-  for (const line of rawYaml.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const kvMatch = trimmed.match(/^(\w[\w_]*)\s*:\s*(.*)$/);
-    if (kvMatch) {
-      currentKey = kvMatch[1];
-      const val = kvMatch[2].trim();
-      if (val === "") {
-        inArray = false;
-      } else if (val.startsWith("[") && val.endsWith("]")) {
-        meta[currentKey] = val.slice(1, -1).split(",").map(s => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
-        inArray = false;
-      } else if (val.startsWith('"') || val.startsWith("'")) {
-        meta[currentKey] = val.replace(/^["']|["']$/g, "");
-        inArray = false;
-      } else {
-        meta[currentKey] = isNaN(Number(val)) ? val : Number(val);
-        inArray = false;
-      }
-    } else if (trimmed.startsWith("- ")) {
-      if (!Array.isArray(meta[currentKey])) meta[currentKey] = [];
-      meta[currentKey].push(trimmed.slice(2).trim().replace(/^["']|["']$/g, ""));
-      inArray = true;
-    }
-  }
-  return { meta, body };
-}
-
-function buildFrontmatter(meta: Record<string, any>): string {
-  const lines: string[] = ["---"];
-  for (const [key, val] of Object.entries(meta)) {
-    if (Array.isArray(val)) {
-      lines.push(`${key}:`);
-      for (const item of val) {
-        lines.push(`  - ${JSON.stringify(item)}`);
-      }
-    } else if (typeof val === "string") {
-      lines.push(`${key}: ${JSON.stringify(val)}`);
-    } else {
-      lines.push(`${key}: ${val}`);
-    }
-  }
-  lines.push("---", "");
-  return lines.join("\n");
-}
 
 function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
@@ -103,13 +46,14 @@ interface BibleEntryRef {
   priority: string;
 }
 
-function findAllBibleEntries(rootPath: string): BibleEntryRef[] {
+export function findAllBibleEntries(rootPath: string): BibleEntryRef[] {
   const bibleDir = path.join(rootPath, "bible");
   if (!fs.existsSync(bibleDir)) return [];
   const files = getAllMdFiles(bibleDir);
   const entries: BibleEntryRef[] = [];
 
   for (const file of files) {
+    if (path.relative(bibleDir, file) === "voice-profile.md") continue;
     const content = readText(file);
     const { meta } = parseFrontmatter(content);
 
@@ -423,20 +367,21 @@ export default function novelBibleExtension(pi: any) {
   // ─── Tool: bible_consistency_check ──────────────────────────────────────────
   pi.registerTool({
     name: "bible_consistency_check",
-    label: "Check Bible Consistency",
-    description: "Check if the continuity/facts.json file is stale compared to bible entries",
+    label: "Check Bible Freshness",
+    description: "Compare bible modification dates with continuity/facts.json last_synced. Date-based freshness only, never a factual consistency verdict.",
     parameters: Type.Object({}),
     execute: async () => {
       const project = getProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
 
       const factsPath = path.join(project.rootPath, "continuity", "facts.json");
-      if (!fs.existsSync(factsPath)) return { content: [{ type: "text", text: "facts.json not found. Run world-building first." }] };
+      if (!fs.existsSync(factsPath)) return { content: [{ type: "text", text: "Freshness unknown: facts.json is missing. No factual comparison performed." }] };
 
       const factsData = JSON.parse(readText(factsPath));
-      let lastSyncedMs = 0;
-      if (factsData.last_synced) {
-        lastSyncedMs = new Date(factsData.last_synced).getTime();
+      const lastSyncedMs = typeof factsData.last_synced === "string" && factsData.last_synced.trim()
+        ? Date.parse(factsData.last_synced) : NaN;
+      if (!Number.isFinite(lastSyncedMs) || lastSyncedMs > Date.now()) {
+        return { content: [{ type: "text", text: "Freshness unknown: last_synced is missing, invalid, or in the future. Compare the records with actual prose; no factual comparison performed." }] };
       }
 
       const entries = findAllBibleEntries(project.rootPath);
@@ -450,10 +395,10 @@ export default function novelBibleExtension(pi: any) {
       }
 
       if (staleItems.length === 0) {
-        return { content: [{ type: "text", text: "All continuity facts are up-to-date with current bible entries." }] };
+        return { content: [{ type: "text", text: "No bible entries have newer modification dates than last_synced. This is date-based freshness only; factual consistency has not been checked." }] };
       }
 
-      return { content: [{ type: "text", text: `Warning: facts.json is stale. ${staleItems.length} bible entries have been modified since last sync:\n\n` + staleItems.join("\n") }] };
+      return { content: [{ type: "text", text: `Date-based freshness warning: ${staleItems.length} bible entries have been modified since last_synced. This does not establish a factual contradiction; compare affected records and prose.\n\n` + staleItems.join("\n") }] };
     }
   });
 
@@ -557,11 +502,14 @@ export default function novelBibleExtension(pi: any) {
 
   pi.registerTool({
     name: "outline_chapter_update",
-    label: "Update Chapter Outline Outline",
-    description: "Update a chapter outline's body exactly",
+    label: "Update Chapter Outline",
+    description: "Replace a chapter outline's body and optionally correct its title, timeline and scene count. Preserve unspecified metadata; reconcile other affected plans and actual records separately.",
     parameters: Type.Object({
       chapter: Type.Number({ description: "Chapter number" }),
-      body: Type.String({ description: "New full body for the outline (e.g. updated scene breakdown)" })
+      body: Type.String({ description: "New full body for the outline (e.g. updated scene breakdown)" }),
+      title: Type.Optional(Type.String({ minLength: 1 })),
+      timeline: Type.Optional(Type.String()),
+      scenes: Type.Optional(Type.Integer({ minimum: 1 }))
     }),
     execute: async (_id: string, params: any) => {
       const project = getProject();
@@ -577,7 +525,9 @@ export default function novelBibleExtension(pi: any) {
       const filePath = path.join(dirPath, file);
       const oldContent = readText(filePath);
       const { meta } = parseFrontmatter(oldContent);
-
+      for (const key of ["title", "timeline", "scenes"]) {
+        if (params[key] !== undefined) meta[key] = params[key];
+      }
       writeText(filePath, buildFrontmatter(meta) + params.body);
       return { content: [{ type: "text", text: `Updated chapter ${params.chapter} outline.` }] };
     }
@@ -618,6 +568,7 @@ export default function novelBibleExtension(pi: any) {
         newBody = body.trimEnd() + "\n" + fullNewSection;
       }
 
+      meta.scenes = Math.max(Number(meta.scenes) || 0, params.scene);
       writeText(filePath, buildFrontmatter(meta) + newBody);
       return { content: [{ type: "text", text: `Updated scene card ${params.scene} in Chapter ${params.chapter} outline.` }] };
     }
@@ -681,7 +632,7 @@ export default function novelBibleExtension(pi: any) {
     handler: async (_args: string, ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
@@ -697,7 +648,7 @@ export default function novelBibleExtension(pi: any) {
       pi.sendMessage({
         customType: "novel-bible",
         content: `Bible Summary`,
-        display: { title: "Bible", isSummary: false },
+        display: true,
         details: { entries: displayEntries }
       });
     }
@@ -708,13 +659,13 @@ export default function novelBibleExtension(pi: any) {
     handler: async (_args: string, ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
 
       const outDir = path.join(project.rootPath, "outline", "chapters");
       if (!fs.existsSync(outDir)) {
-        pi.sendMessage({ customType: "markdown", content: "No outlines found.", display: { title: "Outline", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No outlines found.", display: true });
         return;
       }
 
@@ -722,6 +673,7 @@ export default function novelBibleExtension(pi: any) {
       const outlines = [];
       for (const file of files) {
         const content = readText(path.join(outDir, file));
+        const { meta } = parseFrontmatter(content);
         const lines = content.split("\n");
 
         // Chapter number: from filename prefix (e.g. "03-floor-one.md" -> 3)
@@ -730,15 +682,15 @@ export default function novelBibleExtension(pi: any) {
 
         // Title: first `# ...` heading, strip the leading `# Chapter N: ` prefix if present
         const h1Line = lines.find((l: string) => l.startsWith("# "));
-        let title = "Untitled";
-        if (h1Line) {
+        let title = meta.title || "Untitled";
+        if (!meta.title && h1Line) {
           title = h1Line.replace(/^#\s+/, "").replace(/^Chapter\s+\d+[:\s]+/i, "").trim() || h1Line.replace(/^#\s+/, "").trim();
         }
 
         // Purpose: first non-empty line after `## Narrative Purpose`
-        let purpose = "";
+        let purpose = meta.purpose || "";
         const purposeIdx = lines.findIndex((l: string) => /^##\s+Narrative Purpose/i.test(l));
-        if (purposeIdx !== -1) {
+        if (!purpose && purposeIdx !== -1) {
           for (let i = purposeIdx + 1; i < lines.length; i++) {
             const t = lines[i].trim();
             if (t && !t.startsWith("#")) { purpose = t; break; }
@@ -751,7 +703,7 @@ export default function novelBibleExtension(pi: any) {
       pi.sendMessage({
         customType: "novel-outline",
         content: `Outline Summary`,
-        display: { title: "Outline Summary", isSummary: false },
+        display: true,
         details: { outlines }
       });
     }

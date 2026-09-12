@@ -8,14 +8,16 @@ How to use progress tracking to build and maintain a writing habit.
 
 ### Set a realistic daily goal
 
-The default daily goal is 1,000 words. This is sustainable for most writers
-working for 45-60 minutes per day.
+The default daily goal is 2,000 words. Choose a goal that fits your routine.
 
 Adjust based on your schedule:
 
-> "Set my daily goal to 500 words"    <- for 20-30 min sessions
-> "Set my daily goal to 1500 words"   <- for dedicated 90 min sessions
-> "Set my daily goal to 2000 words"   <- for intensive drafting periods
+> "Set my daily goal to 500 words"
+> "Set my daily goal to 1500 words"
+> "Set my daily goal to 2000 words"
+
+Both dashboards use the same project settings. Setting a goal updates both views;
+editing the target in `project.json` is also reflected in the progress view.
 
 ### Set your total project target
 
@@ -41,8 +43,8 @@ Or update it in `project.json` directly:
 ```
 
 This shows:
-- How far you are from your daily goal today
-- Whether you have a streak or recent momentum to maintain
+- The dashboard's derived word change for today and how it compares with your daily goal
+- Your current total manuscript words and seven stored daily total snapshots
 
 **If you are far from your goal:**
 ```
@@ -59,7 +61,7 @@ Write freely — the word count updates automatically after each AI turn.
 
 Ask the AI: "How many words have I written today?"
 
-The AI calls `progress_overview` and reports your current daily total.
+The AI calls `progress_overview` and derives today's change from stored total-manuscript snapshots. Treat that result as an estimate when dates are missing or the manuscript was edited.
 
 ---
 
@@ -70,44 +72,23 @@ The AI calls `progress_overview` and reports your current daily total.
 ```
 
 Review:
-- Did you hit your daily goal?
-- How does today compare to your weekly average?
-- What is your momentum trend (is the sparkline rising or falling)?
+- Did the dashboard's derived word change reach your daily goal?
+- What is the current total manuscript word count?
+- Do the seven stored totals reflect the manuscript growth or edits you expected?
 
 ---
 
-## Part 3: Reading the Weekly Sparkline
+## Part 3: Reading the Seven-Day Chart
 
-The 7-day history bar chart shows your writing velocity over the past week.
+The chart shows seven UTC-date snapshots of the manuscript's **total** word
+count. Each bar is scaled against the largest stored total in those seven dates.
+It is not daily writing velocity, a streak, or a weekly average.
 
-**Patterns to recognize:**
-
-```
-Mon 1200 [============]
-Tue 1150 [===========]
-Wed 900  [=========  ]
-Thu 0    [           ]  <- missed day
-Fri 1400 [===========]  <- recovery
-Sat 800  [========   ]
-Sun 0    [           ]  <- rest day
-```
-
-This is a healthy pattern. One rest day per week is sustainable.
-
-```
-Mon 200  [==         ]
-Tue 150  [=          ]
-Wed 0    [           ]
-Thu 0    [           ]
-Fri 100  [           ]
-Sat 0    [           ]
-Sun 300  [===        ]
-```
-
-This pattern suggests momentum problems. Options:
-- Lower your daily goal to something you can actually hit
-- Use `/PNW-sprint` to make sessions more focused
-- Block a specific daily writing time and treat it as an appointment
+Interpret it cautiously:
+- A higher total can reflect new prose or expansion edits.
+- A lower total can reflect cuts or rewrites.
+- A zero can mean no snapshot was stored for that date; it does not prove that no writing happened.
+- Differences between snapshots are not a precise activity log because missing dates and edits can distort them.
 
 ---
 
@@ -134,43 +115,29 @@ Sprint ends: 430 words in 25 min
 
 ---
 
-## Part 5: Understanding API Cost
+## Part 5: Understanding Reported Usage
 
-The progress dashboard shows API cost to help you understand the financial
-impact of your writing sessions.
+Both dashboards show the current Pi session's reported usage estimate, including
+assistant, nested tool, and compaction usage. Resuming the same saved session
+retains its usage. This is not a project lifetime total or a verified charge.
+Subscription-backed sessions may also report such estimates.
 
-- **Session cost:** Cost of the current pi session (resets when you restart pi)
-- **Project total:** All API costs since the project was initialized
-
-**What drives cost:**
-- Drafting scenes (moderate — one model call per scene section)
-- Running editing skills (higher — multiple analysis passes)
-- Running `analyze_*` tools (moderate per call)
-- Long context windows from large bible/summary injections (higher per call)
-
-**Tips for managing cost:**
-- Use `/PNW-sprint` for focused drafting (fewer exploratory calls)
-- Run `cost_estimate` before bulk operations
-- Increase `contextBudget.*` only if you need more context; smaller budgets
-  reduce cost per call
+`cost_estimate` estimates a selected text's token footprint, not the full cost
+of completing a workflow. For one scene, specify its chapter and scene numbers.
+Repeated history, other context, prompts and later revision passes are excluded.
 
 ---
 
 ## Part 6: Long-Term Progress Tracking
 
-The `.pi/progress.json` file stores your full history:
-- Daily word counts going back to project start
-- API cost per day
-- Sprint session records
-
-This is a plain JSON file you can open and read. It will eventually show you:
-- Your average pace across the entire project
-- Which days and times you write most productively
-- Your total invested cost for the novel
+The `.pi/progress.json` file stores UTC-date snapshots of total manuscript words
+and stored goals. It is not a precise daily activity log: missing days and edits can
+make derived daily deltas misleading. The current dashboard shows seven dates.
 
 No summary view for the full history is currently built into the dashboard
 (it shows 7 days). To see longer history, ask the AI:
 
-> "Show me my monthly word count totals from progress.json"
+> "Show me the stored manuscript-total snapshots by month from progress.json"
 
-The AI reads the file and computes the summary for you.
+The AI can group the stored snapshots for you, but should not present them as
+monthly words written, daily velocity, streaks, or reliable weekly averages.

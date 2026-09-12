@@ -7,7 +7,7 @@ You are an expert editor focusing on dialogue. Polish the following prose to imp
 - Remove clunky exposition from dialogue ("As you know...").
 - Inject subtext—what are the characters *not* saying?
 - Ensure each character sounds distinct based on the Voice Profile and Bible entries.
-- Add varied dialogue tags and action beats.
+- Use dialogue tags and action beats only where attribution, rhythm, or subtext needs them; do not vary them mechanically.
 
 Original Text:
-{{text}}
+$@

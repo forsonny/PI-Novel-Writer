@@ -4,8 +4,11 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import { Type } from "@sinclair/typebox";
-import { Box, Text, Container, Spacer, truncateToWidth } from "@mariozechner/pi-tui";
+import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
+import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import {
   readText, writeText, resolvePath, pathsEqual,
   normalizeKey, toSafeFilename, validateFilename, getEditor
@@ -48,6 +51,7 @@ interface ProjectConfig {
 interface SceneMetadata {
   chapter: number;
   scene: number;
+  order?: number;
   title: string;
   pov: string;
   location: string;
@@ -97,7 +101,7 @@ function _setProject(p: NovelProject): void {
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
-function parseFrontmatter(content: string): { meta: Record<string, any>; body: string } {
+export function parseFrontmatter(content: string): { meta: Record<string, any>; body: string } {
   const match = content.match(FRONTMATTER_RE);
   if (!match) return { meta: {}, body: content };
   const rawYaml = match[1];
@@ -114,10 +118,17 @@ function parseFrontmatter(content: string): { meta: Record<string, any>; body: s
       currentKey = kvMatch[1];
       const val = kvMatch[2].trim();
       if (val === "") {
+        meta[currentKey] = [];
         inArray = false;
-      } else if (val.startsWith("[") && val.endsWith("]")) {
+      } else if (/^["[{]|^(true|false|null)$/.test(val)) {
+        try {
+          meta[currentKey] = JSON.parse(val);
+        } catch {
         // Inline array
-        meta[currentKey] = val.slice(1, -1).split(",").map(s => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+          meta[currentKey] = val.startsWith("[")
+            ? val.slice(1, -1).split(",").map(s => s.trim().replace(/^["']|["']$/g, "")).filter(Boolean)
+            : val.replace(/^["']|["']$/g, "");
+        }
         inArray = false;
       } else if (val.startsWith('"') || val.startsWith("'")) {
         meta[currentKey] = val.replace(/^["']|["']$/g, "");
@@ -128,37 +139,56 @@ function parseFrontmatter(content: string): { meta: Record<string, any>; body: s
       }
     } else if (trimmed.startsWith("- ")) {
       if (!Array.isArray(meta[currentKey])) meta[currentKey] = [];
-      meta[currentKey].push(trimmed.slice(2).trim().replace(/^["']|["']$/g, ""));
+      const item = trimmed.slice(2).trim();
+      try { meta[currentKey].push(JSON.parse(item)); }
+      catch { meta[currentKey].push(item.replace(/^["']|["']$/g, "")); }
       inArray = true;
     }
   }
   return { meta, body };
 }
 
-function buildFrontmatter(meta: Record<string, any>): string {
+export function buildFrontmatter(meta: Record<string, any>): string {
   const lines: string[] = ["---"];
   for (const [key, val] of Object.entries(meta)) {
     if (Array.isArray(val)) {
-      lines.push(`${key}:`);
+      lines.push(val.length ? `${key}:` : `${key}: []`);
       for (const item of val) {
         lines.push(`  - ${JSON.stringify(item)}`);
       }
     } else if (typeof val === "string") {
       lines.push(`${key}: ${JSON.stringify(val)}`);
     } else {
-      lines.push(`${key}: ${val}`);
+      lines.push(`${key}: ${JSON.stringify(val)}`);
     }
   }
   lines.push("---", "");
   return lines.join("\n");
 }
 
-function countWords(text: string): number {
+export function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function sceneKey(chapter: number, scene: number): string {
+export function sceneKey(chapter: number, scene: number): string {
   return `${String(chapter).padStart(2, "0")}-${String(scene).padStart(2, "0")}`;
+}
+
+export function orderedScenes(p: NovelProject): SceneMetadata[] {
+  return [...p.scenes.values()].sort((a, b) =>
+    a.chapter - b.chapter || (a.order ?? a.scene) - (b.order ?? b.scene) || a.scene - b.scene);
+}
+
+// Same scope as Pi's footer: all saved usage in this session, including compaction.
+// Recompute rather than incrementing on agent_end, which would count retries twice.
+export function sessionUsageCost(ctx: any): number | undefined {
+  if (!ctx.sessionManager?.getEntries) return undefined;
+  return ctx.sessionManager.getEntries().reduce((total: number, entry: any) => {
+    const usage = entry.type === "message" && ["assistant", "toolResult"].includes(entry.message.role)
+      ? entry.message.usage
+      : ["compaction", "branch_summary"].includes(entry.type) ? entry.usage : undefined;
+    return total + (usage?.cost?.total ?? 0);
+  }, 0);
 }
 
 function ensureDir(dirPath: string): void {
@@ -216,10 +246,48 @@ function scanScenes(rootPath: string, format: string): Map<string, SceneMetadata
 }
 
 function loadProject(rootPath: string): NovelProject {
+  rootPath = path.resolve(rootPath);
   const configPath = path.join(rootPath, "project.json");
   const config: ProjectConfig = JSON.parse(readText(configPath));
   const scenes = scanScenes(rootPath, config.format);
   return { config, rootPath, scenes };
+}
+
+export function refreshProject(): NovelProject | null {
+  const p = getProject();
+  if (p) {
+    const fresh = loadProject(p.rootPath);
+    Object.assign(p, fresh);
+    setProject(p);
+  }
+  return p;
+}
+
+// Preserve earlier prose before an unattended revision, including repeated passes.
+export function saveScene(filePath: string, content: string): void {
+  const p = getProject();
+  if (!p) throw new Error("No project loaded.");
+  const original = readText(filePath);
+  if (original === content) return;
+  const backupDir = path.join(p.rootPath, "notes", "revisions");
+  ensureDir(backupDir);
+  const digest = createHash("sha256").update(original).digest("hex");
+  const backup = path.join(backupDir, `${digest}.md`);
+  if (!fs.existsSync(backup)) fs.copyFileSync(filePath, backup);
+  writeText(filePath, content);
+}
+
+export async function replacePassage(chapter: number, scene: number, original: string, replacement: string) {
+  const entry = refreshProject()?.scenes.get(sceneKey(chapter, scene));
+  if (!entry) throw new Error(`Scene ${chapter}.${scene} not found.`);
+  return withFileMutationQueue(entry.filePath, () => {
+    const raw = readText(entry.filePath);
+    const { body } = parseFrontmatter(raw);
+    if (!original || body.split(original).length !== 2) {
+      throw new Error("The original passage must match exactly once in the scene prose. Read it again before editing.");
+    }
+    saveScene(entry.filePath, raw.slice(0, raw.length - body.length) + body.replace(original, () => replacement));
+  });
 }
 
 // ─── Default project.json ─────────────────────────────────────────────────────
@@ -240,9 +308,9 @@ function defaultProjectConfig(title: string): ProjectConfig {
     workflow: "structured",
     settings: {
       autoSummary: false,
-      summaryModel: "haiku",
-      draftModel: "sonnet",
-      editModel: "opus",
+      summaryModel: "",
+      draftModel: "",
+      editModel: "",
       voiceProfilePath: "bible/voice-profile.md",
       editor: "auto",
       subscriptionMode: false,
@@ -254,6 +322,16 @@ function defaultProjectConfig(title: string): ProjectConfig {
 // ─── Extension Entry Point ────────────────────────────────────────────────────
 
 export default function novelCoreExtension(pi: any) {
+  pi.on("before_agent_start", (event: any) => {
+    refreshProject();
+    // Retire only the exact shipped pre-0.2.2 rule, without rewriting author files.
+    const oldRule = "Do NOT manually read/write summary files — always use `summary_generate`, `novel_summary_refresh`, and `/PNW-summarize`.";
+    if (getProject() && event.systemPrompt?.includes(oldRule)) {
+      return { systemPrompt: event.systemPrompt.replaceAll(oldRule,
+        "Read existing summaries with `summary_read` or ordinary read-only file access. Store changes with `summary_generate`; freshness is not factual validation.") };
+    }
+  });
+  pi.on("tool_call", () => { refreshProject(); });
 
   // ─── Message Renderers ────────────────────────────────────────────────────
   pi.registerMessageRenderer("novel-status", (message: any, _options: any, theme: any) => {
@@ -313,7 +391,7 @@ export default function novelCoreExtension(pi: any) {
 
     if (details.apiCost !== undefined) {
       container.addChild(new Spacer(1));
-      container.addChild(new Text(T(`  API Cost: $${details.apiCost.toFixed(2)} USD  `), 2, 0, (t: string) => theme.fg("dim", t)));
+      container.addChild(new Text(T(`  Session usage estimate: $${details.apiCost.toFixed(3)} (not billing)  `), 2, 0, (t: string) => theme.fg("dim", t)));
     }
 
     const outerBox = new Box(1, 1);
@@ -323,6 +401,8 @@ export default function novelCoreExtension(pi: any) {
 
   // ─── Session Start: Load existing project ─────────────────────────────────
   pi.on("session_start", async (_event: any, ctx: any) => {
+    project = null;
+    (globalThis as any)[STATE_KEY] = null;
     const projectJsonPath = path.join(ctx.cwd, "project.json");
     if (fs.existsSync(projectJsonPath)) {
       try {
@@ -333,7 +413,7 @@ export default function novelCoreExtension(pi: any) {
         pi.sendMessage({
           customType: "markdown",
           content: `Warning: Found project.json in ${ctx.cwd} but failed to load it.\n\nError: ${err?.message || String(err)}\n\nRun \`/PNW-load ${ctx.cwd}\` to retry, or \`/PNW-init\` to create a new project.`,
-          display: { title: "Project Load Error", isSummary: true }
+          display: true
         });
       }
     }
@@ -343,19 +423,19 @@ export default function novelCoreExtension(pi: any) {
   pi.registerCommand("PNW-load", {
     description: "Load an existing novel project from a path (e.g. /PNW-load C:/projects/my-novel)",
     handler: async (args: string, ctx: any) => {
-      const targetPath = args.trim() || ctx.cwd;
+      const targetPath = path.resolve(ctx.cwd, args.trim().replace(/^"(.*)"$/, "$1") || ".");
       const projectJsonPath = path.join(targetPath, "project.json");
       if (!fs.existsSync(projectJsonPath)) {
-        pi.sendMessage({ customType: "markdown", content: `No project.json found in: ${targetPath}\n\nRun \`/PNW-init\` to create a new project there.`, display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: `No project.json found in: ${targetPath}\n\nRun \`/PNW-init\` to create a new project there.`, display: true });
         return;
       }
       try {
         _setProject(loadProject(targetPath));
         pi.setSessionName(project!.config.title);
         pi.events.emit("novel:project-loaded", { project });
-        pi.sendMessage({ customType: "markdown", content: `Loaded project: **${project!.config.title}**\nPath: ${targetPath}`, display: { title: "Project Loaded", isSummary: false } });
+        pi.sendMessage({ customType: "markdown", content: `Loaded project: **${project!.config.title}**\nPath: ${targetPath}`, display: true });
       } catch (err: any) {
-        pi.sendMessage({ customType: "markdown", content: `Failed to load project from: ${targetPath}\n\nError: ${err?.message || String(err)}`, display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: `Failed to load project from: ${targetPath}\n\nError: ${err?.message || String(err)}`, display: true });
       }
     }
   });
@@ -367,16 +447,23 @@ export default function novelCoreExtension(pi: any) {
       const root = ctx.cwd;
       const isQuick = args?.includes("--quick");
       const title = "Untitled Novel";
+      if (fs.existsSync(path.join(root, "project.json")) || fs.existsSync(path.join(root, "manuscript"))) {
+        pi.sendMessage({ customType: "markdown", content: "Existing novel work found. Use /PNW-load instead; initialization will not overwrite it.", display: true });
+        return;
+      }
+      ensureDir(path.join(root, ".pi"));
 
       // Create project.json
       const config = defaultProjectConfig(title);
       writeText(path.join(root, "project.json"), JSON.stringify(config, null, 2));
 
       // Create .gitattributes
-      writeText(path.join(root, ".gitattributes"), "* text=auto eol=lf\n*.json text eol=lf\n*.md   text eol=lf\n*.yaml text eol=lf\n");
+      if (!fs.existsSync(path.join(root, ".gitattributes"))) writeText(path.join(root, ".gitattributes"), "* text=auto eol=lf\n*.json text eol=lf\n*.md   text eol=lf\n*.yaml text eol=lf\n");
 
       // Create .gitignore
-      writeText(path.join(root, ".gitignore"), "node_modules/\n.pi/edit-suggestions.json\n.pi/progress.json\n.pi/github.json\nexports/\n");
+      const ignorePath = path.join(root, ".gitignore");
+      const ignored = fs.existsSync(ignorePath) ? readText(ignorePath) : "";
+      writeText(ignorePath, ignored + "\nnode_modules/\n.pi/edit-suggestions.json\n.pi/progress.json\n.pi/github.json\nexports/\n");
 
       if (isQuick) {
         // Minimal: just project.json + first scene
@@ -417,15 +504,15 @@ export default function novelCoreExtension(pi: any) {
         writeText(path.join(root, "continuity", "report.json"), JSON.stringify({ last_run: "", issues: [] }, null, 2));
 
         // Copy SYSTEM.md to .pi/
-        const pkgDir = path.resolve(new URL(".", import.meta.url).pathname.replace(/^\/([A-Z]:)/i, "$1"), "..");
+        const pkgDir = fileURLToPath(new URL("../", import.meta.url));
         const systemSrc = path.join(pkgDir, "system", "SYSTEM.md");
-        if (fs.existsSync(systemSrc)) {
-          writeText(path.join(root, ".pi", "SYSTEM.md"), readText(systemSrc));
+        if (fs.existsSync(systemSrc) && !fs.existsSync(path.join(root, ".pi", "APPEND_SYSTEM.md"))) {
+          writeText(path.join(root, ".pi", "APPEND_SYSTEM.md"), readText(systemSrc));
         }
 
         // Generate AGENTS.md from template
         const templateSrc = path.join(pkgDir, "system", "AGENTS.md.template");
-        if (fs.existsSync(templateSrc)) {
+        if (fs.existsSync(templateSrc) && !fs.existsSync(path.join(root, ".pi", "AGENTS.md"))) {
           let agentsContent = readText(templateSrc);
           agentsContent = agentsContent
             .replace(/\{\{title\}\}/g, config.title)
@@ -454,7 +541,7 @@ export default function novelCoreExtension(pi: any) {
       pi.sendMessage({
         customType: "markdown",
         content: `Novel project "${config.title}" initialized. Run the getting-started skill to configure your project.`,
-        display: { title: "Init", isSummary: false }
+        display: true
       });
     }
   });
@@ -463,8 +550,9 @@ export default function novelCoreExtension(pi: any) {
   pi.registerCommand("PNW-status", {
     description: "Show project dashboard with word count, chapter status, and alerts",
     handler: async (_args: string, ctx: any) => {
+      refreshProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: { title: "Error", isSummary: true } });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
         return;
       }
       const c = project.config;
@@ -510,28 +598,19 @@ export default function novelCoreExtension(pi: any) {
           }
       }
 
-      let apiCost: number | undefined;
-      const progressPath = path.join(project.rootPath, ".pi", "progress.json");
-      if (fs.existsSync(progressPath)) {
-        try {
-          const prog = JSON.parse(readText(progressPath));
-          if (prog.cumulative_api_cost_usd !== undefined) {
-             apiCost = prog.cumulative_api_cost_usd;
-          }
-        } catch(e) {}
-      }
+      const apiCost = sessionUsageCost(ctx);
 
       pi.sendMessage({
         customType: "novel-status",
         content: `Dashboard for ${c.title}`,
-        display: { title: "Dashboard", isSummary: false },
+        display: true,
         details: {
            projectTitle: c.title,
            genre: c.genre, pov: c.pov, tense: c.tense,
            totalWords, targetWordCount: c.targetWordCount, pct,
            chapters: chapterStats.size, scenes: project.scenes.size,
            chapterStats: chapterStatsArr,
-           alerts: missingGaps,
+           alerts: missingGaps.map(message => ({ level: "warning", message })),
            apiCost
         }
       });
@@ -547,6 +626,7 @@ export default function novelCoreExtension(pi: any) {
     description: "Read project.json and return project metadata including format, workflow, word count target, and settings",
     parameters: Type.Object({}),
     execute: async () => {
+      refreshProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded. Run /PNW-init first." }] };
       return { content: [{ type: "text", text: JSON.stringify(project.config, null, 2) }] };
     }
@@ -568,6 +648,10 @@ export default function novelCoreExtension(pi: any) {
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded. Run /PNW-init first." }] };
       const { chapter, title, pov, location, timeline, characters_present } = params;
+      if (!Number.isInteger(chapter) || chapter < 1) throw new Error("Chapter must be a positive integer.");
+      const format = project.config.format;
+      if (["short-story", "flash-fiction"].includes(format) && chapter !== 1) throw new Error("This format uses chapter 1 only.");
+      if (format === "flash-fiction" && project.scenes.size) throw new Error("Flash fiction already has its single scene.");
 
       // Find next scene number for this chapter
       let maxScene = 0;
@@ -578,7 +662,9 @@ export default function novelCoreExtension(pi: any) {
 
       // Build path
       const chDirName = String(chapter).padStart(2, "0");
-      const chDir = path.join(project.rootPath, "manuscript", "chapters", chDirName);
+      const chDir = format === "flash-fiction" ? path.join(project.rootPath, "manuscript")
+        : format === "short-story" ? path.join(project.rootPath, "manuscript", "scenes")
+        : path.join(project.rootPath, "manuscript", "chapters", chDirName);
       ensureDir(chDir);
 
       const meta: Record<string, any> = {
@@ -589,8 +675,9 @@ export default function novelCoreExtension(pi: any) {
         characters_present: characters_present || [], plot_threads: [], tags: [], summary: ""
       };
 
-      const fileName = `scene-${String(sceneNum).padStart(2, "0")}.md`;
+      const fileName = format === "flash-fiction" ? "story.md" : `scene-${String(sceneNum).padStart(2, "0")}.md`;
       const filePath = path.join(chDir, fileName);
+      if (fs.existsSync(filePath)) throw new Error("A scene already exists at that path. Reload the project before creating another.");
       writeText(filePath, buildFrontmatter(meta) + "\n");
 
       // Update in-memory state
@@ -733,6 +820,7 @@ export default function novelCoreExtension(pi: any) {
       const { meta, body } = parseFrontmatter(content);
       meta.chapter = params.targetChapter;
       meta.scene = newSceneNum;
+      delete meta.order; // Moving appends to the target chapter, not the old split position.
 
       const newFileName = `scene-${String(newSceneNum).padStart(2, "0")}.md`;
       const newPath = path.join(targetDir, newFileName);
@@ -742,7 +830,7 @@ export default function novelCoreExtension(pi: any) {
       // Update in-memory
       project.scenes.delete(key);
       const newKey = sceneKey(params.targetChapter, newSceneNum);
-      project.scenes.set(newKey, { ...scene, chapter: params.targetChapter, scene: newSceneNum, filePath: newPath });
+      project.scenes.set(newKey, { ...scene, order: undefined, chapter: params.targetChapter, scene: newSceneNum, filePath: newPath });
 
       return { content: [{ type: "text", text: `Moved to Chapter ${params.targetChapter}, Scene ${newSceneNum}` }] };
     }
@@ -798,7 +886,7 @@ export default function novelCoreExtension(pi: any) {
       const results: string[] = [];
       const pattern = params.regex ? new RegExp(params.query, "gi") : null;
 
-      for (const [_k, scene] of project.scenes) {
+      for (const scene of orderedScenes(project)) {
         if (params.chapterMin && scene.chapter < params.chapterMin) continue;
         if (params.chapterMax && scene.chapter > params.chapterMax) continue;
         if (params.status && scene.status !== params.status) continue;
@@ -864,7 +952,7 @@ export default function novelCoreExtension(pi: any) {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
       const rows: string[] = ["Ch | Sc | Title | Status | POV | Words"];
 
-      for (const [_k, scene] of [...project.scenes.entries()].sort()) {
+      for (const scene of orderedScenes(project)) {
         if (params.chapter && scene.chapter !== params.chapter) continue;
         const content = readText(scene.filePath);
         const { body } = parseFrontmatter(content);
@@ -892,9 +980,11 @@ export default function novelCoreExtension(pi: any) {
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} not found.` }] };
 
-      const existing = readText(scene.filePath);
-      const { meta } = parseFrontmatter(existing);
-      writeText(scene.filePath, buildFrontmatter(meta) + params.content);
+      await withFileMutationQueue(scene.filePath, () => {
+        const existing = readText(scene.filePath);
+        const { body } = parseFrontmatter(existing);
+        saveScene(scene.filePath, existing.slice(0, existing.length - body.length) + params.content);
+      });
 
       return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} updated. Words: ${countWords(params.content)}` }] };
     }
@@ -904,7 +994,7 @@ export default function novelCoreExtension(pi: any) {
   pi.registerTool({
     name: "novel_scene_split",
     label: "Split Scene",
-    description: "Split a scene into two files at a paragraph boundary",
+    description: "Split a scene at a body-line boundary, preserving the original version. The continuation reads immediately after its first half; existing scene IDs and references remain stable.",
     parameters: Type.Object({
       chapter: Type.Number({ description: "Chapter number" }),
       scene: Type.Number({ description: "Scene number" }),
@@ -916,34 +1006,42 @@ export default function novelCoreExtension(pi: any) {
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
 
+      return withFileMutationQueue(scene.filePath, () => {
       const content = readText(scene.filePath);
       const { meta, body } = parseFrontmatter(content);
       const lines = body.split("\n");
-      if (params.splitAtLine < 1 || params.splitAtLine >= lines.length) {
+      if (!Number.isInteger(params.splitAtLine) || params.splitAtLine < 1 || params.splitAtLine >= lines.length) {
         return { content: [{ type: "text", text: `Invalid split line. Scene has ${lines.length} lines.` }] };
       }
 
       const firstHalf = lines.slice(0, params.splitAtLine).join("\n");
       const secondHalf = lines.slice(params.splitAtLine).join("\n");
 
-      // Update original scene
-      writeText(scene.filePath, buildFrontmatter(meta) + firstHalf);
-
-      // Create new scene with next number
+      // IDs stay stable, so summaries, plans and knowledge references to OTHER
+      // scenes need no renumbering. Only reading order changes.
       let maxScene = 0;
       for (const [_k, s] of project.scenes) {
         if (s.chapter === params.chapter && s.scene > maxScene) maxScene = s.scene;
       }
       const newNum = maxScene + 1;
-      const newMeta = { ...meta, scene: newNum, title: `${meta.title || "Scene"} (continued)`, summary: "" };
+      const siblings = orderedScenes(project!).filter(s => s.chapter === params.chapter);
+      const next = siblings[siblings.findIndex(s => s.scene === params.scene) + 1];
+      const position = meta.order ?? params.scene;
+      const order = next ? (position + (next.order ?? next.scene)) / 2 : position + 1;
+      const newMeta = { ...meta, scene: newNum, order, title: `${meta.title || "Scene"} (continued)`, summary: "" };
       const chDir = path.dirname(scene.filePath);
       const newPath = path.join(chDir, `scene-${String(newNum).padStart(2, "0")}.md`);
-      writeText(newPath, buildFrontmatter(newMeta) + secondHalf);
+      // Save the continuation before cutting the original; a failed write must
+      // not lose the second half or overwrite an existing scene.
+      fs.writeFileSync(newPath, buildFrontmatter(newMeta) + secondHalf, { encoding: "utf8", flag: "wx" });
+      meta.summary = "";
+      saveScene(scene.filePath, buildFrontmatter(meta) + firstHalf);
 
       const newKey = sceneKey(params.chapter, newNum);
-      project.scenes.set(newKey, { ...scene, scene: newNum, title: newMeta.title, filePath: newPath } as SceneMetadata);
+      project!.scenes.set(newKey, { ...scene, scene: newNum, order, title: newMeta.title, filePath: newPath } as SceneMetadata);
 
-      return { content: [{ type: "text", text: `Split at line ${params.splitAtLine}. New scene: Ch${params.chapter} Sc${newNum}` }] };
+      return { content: [{ type: "text", text: `Split at line ${params.splitAtLine}. New scene: Ch${params.chapter} Sc${newNum}, immediately after Sc${params.scene} in reading order. Other scene IDs are unchanged. Refresh both summaries and their affected scene cards/continuity.` }] };
+      });
     }
   });
 
@@ -999,7 +1097,7 @@ export default function novelCoreExtension(pi: any) {
     label: "Find & Replace",
     description: "Find and replace across the entire project (manuscript, bible, outlines, summaries). Supports preview mode.",
     parameters: Type.Object({
-      find: Type.String({ description: "Text to find" }),
+      find: Type.String({ minLength: 1, description: "Text to find" }),
       replace: Type.String({ description: "Replacement text" }),
       preview: Type.Optional(Type.Boolean({ description: "Preview only — don't apply changes (default: true)" })),
     }),
@@ -1015,6 +1113,7 @@ export default function novelCoreExtension(pi: any) {
         if (!fs.existsSync(dirPath)) continue;
         const files = getAllMdFiles(dirPath);
         for (const filePath of files) {
+          await withFileMutationQueue(filePath, () => {
           const content = readText(filePath);
           const count = (content.match(new RegExp(escapeRegex(params.find), "g")) || []).length;
           if (count > 0) {
@@ -1023,9 +1122,11 @@ export default function novelCoreExtension(pi: any) {
             totalReplacements += count;
             if (!previewMode) {
               const updated = content.split(params.find).join(params.replace);
-              writeText(filePath, updated);
+              if (dir === "manuscript") saveScene(filePath, updated);
+              else writeText(filePath, updated);
             }
           }
+          });
         }
       }
 
@@ -1058,6 +1159,7 @@ export default function novelCoreExtension(pi: any) {
         if (!fs.existsSync(dirPath)) continue;
         const files = getAllFiles(dirPath);
         for (const filePath of files) {
+          await withFileMutationQueue(filePath, () => {
           const content = readText(filePath);
           const matches = content.match(pattern);
           if (matches && matches.length > 0) {
@@ -1065,10 +1167,12 @@ export default function novelCoreExtension(pi: any) {
             results.push(`${rel}: ${matches.length} occurrence(s)`);
             total += matches.length;
             if (!previewMode) {
-              const updated = content.replace(pattern, params.newName);
-              writeText(filePath, updated);
+              const updated = content.replace(pattern, () => params.newName);
+              if (dir === "manuscript") saveScene(filePath, updated);
+              else writeText(filePath, updated);
             }
           }
+          });
         }
       }
 
@@ -1111,16 +1215,25 @@ export default function novelCoreExtension(pi: any) {
   pi.registerTool({
     name: "cost_estimate",
     label: "Cost Estimate",
-    description: "Estimate token cost for a planned operation (summary generation, analysis, bulk edit)",
+    description: "Estimate the selected prose's token footprint (not billing or cumulative context). Scene scope requires chapter and scene; chapter scope requires chapter.",
     parameters: Type.Object({
       operation: Type.String({ description: "Operation type: summary, analysis, bulk-edit, or custom" }),
       scope: Type.Optional(Type.String({ description: "Scope: scene, chapter, or all" })),
+      chapter: Type.Optional(Type.Integer({ minimum: 1 })),
+      scene: Type.Optional(Type.Integer({ minimum: 1 })),
     }),
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
 
+      const scope = params.scope || "all";
+      if (!["scene", "chapter", "all"].includes(scope)) throw new Error("Scope must be scene, chapter, or all.");
+      if (scope !== "all" && !params.chapter) throw new Error("Supply a chapter number for this scope.");
+      if (scope === "scene" && !params.scene) throw new Error("Supply a scene number for scene scope.");
+      const selected = orderedScenes(project).filter(s =>
+        scope === "all" || (s.chapter === params.chapter && (scope === "chapter" || s.scene === params.scene)));
+      if (!selected.length) throw new Error("No scenes found for the selected scope.");
       let totalWords = 0;
-      for (const [_k, scene] of project.scenes) {
+      for (const scene of selected) {
         const content = readText(scene.filePath);
         const { body } = parseFrontmatter(content);
         totalWords += countWords(body);
@@ -1128,17 +1241,17 @@ export default function novelCoreExtension(pi: any) {
 
       const tokensPerWord = 1.3;
       const totalTokens = Math.round(totalWords * tokensPerWord);
-      const sceneCount = project.scenes.size;
+      const sceneCount = selected.length;
 
       const estimates: Record<string, string> = {
-        summary: `~${Math.round(totalTokens * 0.3)} input + ~${sceneCount * 150} output tokens (${sceneCount} scenes)`,
+        summary: `~${totalTokens} input + ~${sceneCount * 150} output tokens (${sceneCount} scenes)`,
         analysis: `~${totalTokens} input + ~${Math.round(sceneCount * 500)} output tokens`,
         "bulk-edit": `~${totalTokens} input + ~${totalTokens} output tokens (full rewrite)`,
-        custom: `Project size: ${totalWords} words, ~${totalTokens} tokens, ${sceneCount} scenes`,
+        custom: `Selected prose: ${totalWords} words, ~${totalTokens} tokens, ${sceneCount} scenes`,
       };
 
       const est = estimates[params.operation] || estimates.custom;
-      return { content: [{ type: "text", text: `Cost estimate for "${params.operation}" (${params.scope || "all"}):\n${est}` }] };
+      return { content: [{ type: "text", text: `Token estimate for "${params.operation}" (${scope}):\n${est}\nExcludes prompts, repeated history and other context; not a billing estimate.` }] };
     }
   });
 

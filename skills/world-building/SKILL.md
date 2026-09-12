@@ -37,4 +37,4 @@ Examples of how to document the world:
 *   **Items:** Use `bible_create` (type: `item`) for legendary artifacts, unique technology, or specific magical resources.
 *   **World Lore:** Use `bible_create` (type: `world`) for broad concepts like the Magic System, historical eras, or cosmological rules.
 
-**Important Note for the AI:** Always confirm with the user before generating the files. Provide a summary list of the entries you plan to create so the user can review them.
+**Important Note for the AI:** In supervised work, confirm the proposed entries before saving. In an authorized autonomous run, create the needed entries without milestone approval and record assumptions. Use only `core`, `secondary`, or `minor` priority.

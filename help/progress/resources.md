@@ -13,22 +13,11 @@ Technical reference for progress tracking internals and data storage.
 **Format:**
 ```json
 {
-  "dailyGoal": 1000,
+  "goals": { "daily": 1000, "total": 90000 },
   "history": {
-    "2026-03-14": {
-      "words": 847,
-      "cost": 0.18,
-      "sprints": [
-        { "start": "2026-03-14T09:00:00Z", "end": "2026-03-14T09:25:00Z", "words": 612 }
-      ]
-    },
-    "2026-03-15": {
-      "words": 0,
-      "cost": 0,
-      "sprints": []
-    }
-  },
-  "costTotal": 8.17
+    "2026-03-14": 847,
+    "2026-03-15": 1600
+  }
 }
 ```
 
@@ -36,12 +25,10 @@ Technical reference for progress tracking internals and data storage.
 
 | Field         | Type   | Description                                    |
 |---------------|--------|------------------------------------------------|
-| `dailyGoal`   | number | Target words per day                           |
-| `history`     | object | Date-keyed records of daily activity           |
-| `history[date].words`  | number | Net words added that day              |
-| `history[date].cost`   | number | API cost in USD for that day          |
-| `history[date].sprints`| array  | Sprint records for that day           |
-| `costTotal`   | number | Cumulative project API cost (USD)              |
+| `goals.daily` | number | Daily target; current project settings are authoritative |
+| `goals.total` | number | Manuscript target; current project settings are authoritative |
+| `history`     | object | UTC date-keyed snapshots of total manuscript words |
+| `history[date]` | number | Total manuscript words at the latest saved update that date |
 
 ---
 
@@ -51,64 +38,46 @@ The `agent_end` event fires at the end of every AI response turn.
 
 ```
 agent_end handler:
-  1. Re-scan all scene files
-  2. Compute current total word count (sum of all non-outline scenes)
-  3. delta = currentTotal - previousTotal
-  4. If delta != 0:
-     today = YYYY-MM-DD (local time)
-     progress.json[today].words += delta
-     Write progress.json
+  1. Compute current total scene-body word count
+  2. today = YYYY-MM-DD (UTC)
+  3. progress.history[today] = currentTotal
+  4. Write progress.json
 ```
 
-This means:
-- Adding 200 words increases today's count by 200
-- Deleting 50 words decreases today's count by 50
-- Net count is tracked, not gross additions
+The daily display compares the current total with yesterday's snapshot, when
+available. The stored history is not an operation-by-operation activity ledger.
 
 ---
 
 ## API Cost Tracking
 
-API cost is estimated per turn and accumulated in `.pi/progress.json`.
+Usage is read from the current Pi session, using the same entry scope as its
+footer: assistant and nested tool usage, compaction and branch-summary usage.
+It is recomputed rather than incremented at every `agent_end`, avoiding duplicate
+counting after retries or reloads. It is a reported estimate, not billing.
 
-Cost calculation:
-```
-inputTokens  * (model input price)
-outputTokens * (model output price)
-```
-
-Actual costs vary by model, region, and Anthropic pricing changes.
-The cost displayed is an estimate and may differ slightly from your
-actual Anthropic invoice.
+`progress_overview` returns `session_usage_cost_usd` and `usage_note`. Legacy
+project cost fields are not treated as authoritative or returned as a current
+zero-cost claim. If no session usage interface is available, the dashboard says
+that the estimate is unavailable.
 
 ---
 
 ## Daily Goal Storage
 
-The daily goal is stored in `.pi/progress.json` → `dailyGoal`.
-The total project target is stored in `project.json` → `targetWordCount`.
+The authoritative daily goal is `project.json` → `dailyWordGoal`.
+The authoritative total target is `project.json` → `targetWordCount`.
 
-Both are used by `/PNW-progress` to compute the progress bars.
+`progress_set_goal` updates those settings and `.pi/progress.json`'s `goals`
+together. Both dashboards use those project settings. Set a desired goal once
+to reconcile a legacy project whose old stores disagreed.
 
 ---
 
 ## Sprint Records
 
-Each sprint (started via `/PNW-sprint`) creates a record:
-
-```json
-{
-  "start": "2026-03-14T09:00:00Z",
-  "end": "2026-03-14T09:25:00Z",
-  "duration": 25,
-  "words": 612,
-  "wpm": 24.5
-}
-```
-
-Sprint records are appended to the day's `sprints` array. They do not
-double-count words — the sprint's word count is part of the day's total,
-not in addition to it.
+The sprint reports its word delta in the session UI. A separate durable sprint
+array is not currently saved in `progress.json`.
 
 ---
 
@@ -140,8 +109,7 @@ not in addition to it.
 | Label          | Set Writing Goal                                    |
 | Input          | daily?, total?                                      |
 | Output         | Confirmation of updated goals                       |
-| Side effect    | Updates `dailyGoal` in `.pi/progress.json`;         |
-|                | updates `targetWordCount` in `project.json`         |
+| Side effect    | Updates `dailyWordGoal` / `targetWordCount` in `project.json` and synchronizes progress goals |
 
 ### `agent_end` event
 
@@ -158,7 +126,7 @@ not in addition to it.
 | File                            | Purpose                                       |
 |---------------------------------|-----------------------------------------------|
 | `extensions/novel-progress.ts`  | Progress command and tracking tools           |
-| `.pi/progress.json`             | Daily word counts, goals, sprint records      |
-| `project.json`                  | Total word count target                       |
+| `.pi/progress.json`             | Word-count snapshots and stored goals         |
+| `project.json`                  | Authoritative daily and total word targets    |
 | `help/sprint/help.md`           | Timed writing sprints                         |
 | `help/status/help.md`           | Full project dashboard including word counts  |
