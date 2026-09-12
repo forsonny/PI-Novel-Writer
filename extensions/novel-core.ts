@@ -3,6 +3,7 @@
 // This extension MUST be loaded first (listed first in package.json pi.extensions)
 
 import path from "node:path";
+import { projectPath, positiveInteger, sceneMetadata } from "./utils/safety.ts";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -16,7 +17,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ProjectConfig {
+export interface ProjectConfig {
   title: string;
   author: string;
   genre: string;
@@ -48,7 +49,7 @@ interface ProjectConfig {
   };
 }
 
-interface SceneMetadata {
+export interface SceneMetadata {
   chapter: number;
   scene: number;
   order?: number;
@@ -64,7 +65,7 @@ interface SceneMetadata {
   filePath: string;
 }
 
-interface NovelProject {
+export interface NovelProject {
   config: ProjectConfig;
   rootPath: string;
   scenes: Map<string, SceneMetadata>;
@@ -107,7 +108,7 @@ export function parseFrontmatter(content: string): { meta: Record<string, any>; 
   const rawYaml = match[1];
   const body = content.slice(match[0].length);
   // Simple YAML parser for our known fields
-  const meta: Record<string, any> = {};
+  const meta: Record<string, any> = Object.create(null);
   let currentKey = "";
   let inArray = false;
   for (const line of rawYaml.split("\n")) {
@@ -195,51 +196,54 @@ function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function scanScenes(rootPath: string, format: string): Map<string, SceneMetadata> {
+export function scanScenes(rootPath: string, format: string): Map<string, SceneMetadata> {
   const scenes = new Map<string, SceneMetadata>();
-  const msDir = path.join(rootPath, "manuscript");
+  const msDir = projectPath(rootPath, "manuscript");
   if (!fs.existsSync(msDir)) return scenes;
 
   if (format === "flash-fiction") {
-    const storyPath = path.join(msDir, "story.md");
+    const storyPath = projectPath(rootPath, path.join(msDir, "story.md"));
     if (fs.existsSync(storyPath)) {
       const content = readText(storyPath);
       const { meta } = parseFrontmatter(content);
-      scenes.set("01-01", { chapter: 1, scene: 1, filePath: storyPath, ...meta } as SceneMetadata);
+      scenes.set("01-01", sceneMetadata(meta, { chapter: 1, scene: 1, filePath: storyPath }));
     }
     return scenes;
   }
 
   if (format === "short-story") {
-    const scenesDir = path.join(msDir, "scenes");
+    const scenesDir = projectPath(rootPath, path.join(msDir, "scenes"));
     if (!fs.existsSync(scenesDir)) return scenes;
     for (const file of fs.readdirSync(scenesDir).sort()) {
       if (!file.endsWith(".md")) continue;
-      const filePath = path.join(scenesDir, file);
+      const filePath = projectPath(rootPath, path.join(scenesDir, file));
       const content = readText(filePath);
       const { meta } = parseFrontmatter(content);
-      const key = sceneKey(1, meta.scene || 1);
-      scenes.set(key, { chapter: 1, filePath, ...meta } as SceneMetadata);
+      const scNum = positiveInteger(meta.scene ?? (parseInt(file.replace(/\D/g, ""), 10) || 1), "Scene");
+      const key = sceneKey(1, scNum);
+      if (scenes.has(key)) throw new Error(`Duplicate scene address ${key}`);
+      scenes.set(key, sceneMetadata(meta, { chapter: 1, scene: scNum, filePath }));
     }
     return scenes;
   }
 
   // novel / novella
-  const chapDir = path.join(msDir, "chapters");
+  const chapDir = projectPath(rootPath, path.join(msDir, "chapters"));
   if (!fs.existsSync(chapDir)) return scenes;
   for (const chDir of fs.readdirSync(chapDir).sort()) {
-    const chPath = path.join(chapDir, chDir);
+    const chPath = projectPath(rootPath, path.join(chapDir, chDir));
     if (!fs.statSync(chPath).isDirectory()) continue;
     const chNum = parseInt(chDir.split("-")[0], 10);
     if (isNaN(chNum)) continue;
     for (const file of fs.readdirSync(chPath).sort()) {
       if (!file.endsWith(".md")) continue;
-      const filePath = path.join(chPath, file);
+      const filePath = projectPath(rootPath, path.join(chPath, file));
       const content = readText(filePath);
       const { meta } = parseFrontmatter(content);
-      const scNum = meta.scene || parseInt(file.replace(/\D/g, ""), 10) || 1;
+      const scNum = positiveInteger(meta.scene ?? (parseInt(file.replace(/\D/g, ""), 10) || 1), "Scene");
       const key = sceneKey(chNum, scNum);
-      scenes.set(key, { chapter: chNum, scene: scNum, filePath, ...meta } as SceneMetadata);
+      if (scenes.has(key)) throw new Error(`Duplicate scene address ${key}`);
+      scenes.set(key, sceneMetadata(meta, { chapter: chNum, scene: scNum, filePath }));
     }
   }
   return scenes;
@@ -267,9 +271,10 @@ export function refreshProject(): NovelProject | null {
 export function saveScene(filePath: string, content: string): void {
   const p = getProject();
   if (!p) throw new Error("No project loaded.");
+  filePath = projectPath(p.rootPath, filePath);
   const original = readText(filePath);
   if (original === content) return;
-  const backupDir = path.join(p.rootPath, "notes", "revisions");
+  const backupDir = projectPath(p.rootPath, "notes/revisions");
   ensureDir(backupDir);
   const digest = createHash("sha256").update(original).digest("hex");
   const backup = path.join(backupDir, `${digest}.md`);

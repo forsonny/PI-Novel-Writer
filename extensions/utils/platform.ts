@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 
 export const IS_WINDOWS = process.platform === "win32";
 
@@ -11,11 +12,11 @@ export function readText(filePath: string): string {
 // Write LF-only (never CRLF), with EBUSY retry for Windows file locking
 export function writeText(filePath: string, content: string, maxRetries = 3): void {
   ensureDir(path.dirname(filePath));
-  const tmpPath = filePath + ".tmp";
+  const tmpPath = `${filePath}.${randomUUID()}.tmp`;
   const data = content.replace(/\r\n/g, "\n");
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      fs.writeFileSync(tmpPath, data, "utf-8");
+      fs.writeFileSync(tmpPath, data, { encoding: "utf-8", flag: attempt === 0 ? "wx" : "w", mode: 0o600 });
       fs.renameSync(tmpPath, filePath); // atomic write
       return;
     } catch (err: any) {
@@ -38,7 +39,8 @@ export function resolvePath(projectRoot: string, storedPath: string): string {
 
 // Case-insensitive path comparison (Windows NTFS is case-insensitive)
 export function pathsEqual(a: string, b: string): boolean {
-  return path.normalize(a).toLowerCase() === path.normalize(b).toLowerCase();
+  return IS_WINDOWS ? path.normalize(a).toLowerCase() === path.normalize(b).toLowerCase()
+    : path.normalize(a) === path.normalize(b);
 }
 
 // Normalize entity names for Map keys (always lowercase)
@@ -52,13 +54,13 @@ const WIN_ILLEGAL  = /[<>:"/\\|?*\x00-\x1f]/;
 
 export function toSafeFilename(name: string): string {
   let safe = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9\-_]/g, "");
-  if (IS_WINDOWS && WIN_RESERVED.test(safe)) safe = "x-" + safe;
+  if (WIN_RESERVED.test(safe)) safe = "x-" + safe;
   return safe || "untitled";
 }
 
 export function validateFilename(name: string): { valid: boolean; reason?: string } {
   if (!name?.trim()) return { valid: false, reason: "Name cannot be empty" };
-  if (IS_WINDOWS) {
+  { // Portable names remain valid when a project moves between operating systems.
     if (WIN_RESERVED.test(name)) return { valid: false, reason: `"${name}" is a reserved Windows filename` };
     if (WIN_ILLEGAL.test(name)) return { valid: false, reason: "Name contains characters not allowed on Windows" };
     if (name.endsWith(".") || name.endsWith(" ")) return { valid: false, reason: "Name cannot end with period or space on Windows" };
