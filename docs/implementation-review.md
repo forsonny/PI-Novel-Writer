@@ -39,3 +39,9 @@ Verification: strict typecheck and 21 regression tests pass. Mapping checks spec
 Scope: assign immutable UUIDs on new scene creation, retain IDs across moves, record split/merge lineage, expose current prose hashes, and support expected-source checks. Existing files are not migrated on read. Canonical JSON hashing rejects non-finite, cyclic, sparse, reserved-key and otherwise lossy values. Numeric scene addresses remain compatibility positions.
 
 Verification: strict checking and 24 tests pass. Real tool tests cover move/split ID preservation, duplicate IDs, rejected stale writes, no-change legacy scans and merge-self rejection. Review added adjacency enforcement to avoid merging unrelated scenes under a misleading tool description. Legacy callers may omit expected hashes; managed literary acceptance will require them at its gateway.
+
+## Change 07: Atomic accepted snapshot store
+
+Scope: immutable, hash-verified and project-bound artifacts; separate candidate storage from accepted HEAD; one compare-and-swap commit for prose, state and evidence; dependency freshness and idempotency; explicit UTF-16 evidence spans. The store does not infer literary approval or automatically promote extracted facts. It is a domain foundation; tool-level acceptance is added next.
+
+Verification: strict checking and 30 tests pass. Fault injection before HEAD publication leaves the old snapshot, and retries cannot roll back later commits. Cross-project/corrupt objects, wrong artifact identities, stale dependencies and occupied locks fail closed. Review found and fixed partial-object publication, object-directory fsync ordering, repeated-request history scanning, and evidence offsets beyond the source boundary. File/directory fsync is attempted; unsupported filesystem durability is reported, not promised. An interrupted lock requires inspection rather than automatic theft. No model work occurs inside a commit lock.
