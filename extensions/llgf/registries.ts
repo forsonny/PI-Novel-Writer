@@ -27,7 +27,7 @@ export const MotifSchema = Strict({
   saturation: SaturationSchema, history: Type.Array(MotifEventSchema, { maxItems: 1000 }),
 });
 export type Motif = Static<typeof MotifSchema>;
-const UseSchema = Strict({ id: Id, position: Position, evidence: Type.Array(Span, { minItems: 1, maxItems: 100 }) });
+export const UseSchema = Strict({ id: Id, position: Position, evidence: Type.Array(Span, { minItems: 1, maxItems: 100 }) });
 export const AffordanceSchema = Strict({
   schemaVersion: Type.Literal(1), id: Id, description: Nonempty, sourceState: Sources,
   when: VoiceWhenSchema, holderId: Type.Union([Id, Type.Null()]), sourceDomains: strings(),

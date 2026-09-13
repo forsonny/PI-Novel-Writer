@@ -34,6 +34,32 @@ notes; use scene-writing and passage-editing tools, which retain prior prose.
 Do not bypass them with raw file writes or shell rewrites of existing scenes.
 Perform dependent mutations sequentially, not in a parallel batch.
 
+## Managed-project precedence
+
+Read `novel_literary_status` once at run entry. If managed writing is enabled,
+read the `literary-workflow` skill. It replaces this skill's direct scene writes,
+legacy summaries/review stamps and completion path with versioned setup,
+isolated calls, accepted state and sequence audits. The brainstorming and
+progression-specific causal principles below still apply. Do not use raw file,
+shell or general edit tools to bypass managed prose acceptance.
+
+The author starts or resumes a managed run with explicit `--calls N --tokens N`
+limits, optionally `--turns N` to bound coordinator continuations. Do not ask for
+milestone approvals in delegated mode. Exhausted execution permission is not a
+creative choice: checkpoint preserved work and pause until the author renews it.
+Those worker limits are not a dollar invoice and exclude coordinator calls and
+compaction. A saved job never grants permission after restart.
+
+Before drafting, create the planned empty scenes to obtain stable identities.
+Use accepted versioned chapter/arc plans, with detailed near scenes and open
+later alternatives. Approved ending constraints and frozen voice invariants do
+not change merely because the drafter would prefer them to.
+
+A substantive accepted-artifact commit counts as checkpoint evidence. Private
+`.pnw` records do not need to be copied into public notes. Final managed review
+uses current chapter, arc and whole-manuscript audits, not `novel_review_scene`.
+The latter remains the legacy project's review path.
+
 ## Source basis
 
 The full supplied theses are bundled, unchanged:
@@ -164,7 +190,7 @@ structure or a fixed fight/training schedule.
   unlimited exemption from causality.
 - Couple motivation and internal choices to progression. Give supporting
   characters independent desires and shifting relationships. Counterplay
-  follows what opponents can observe, infer and afford—not omniscience.
+  follows what opponents can observe, infer and afford-not omniscience.
 - Plan a sparse series spine when relevant, a finite book contract and arc
   braid. Backward-chain the climax through capability, knowledge, resource,
   relationship and value prerequisites. Track setup, payoff, causal outputs,

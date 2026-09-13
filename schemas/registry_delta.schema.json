@@ -1,0 +1,372 @@
+{
+  "type": "object",
+  "required": [
+    "promises",
+    "motifs",
+    "affordances"
+  ],
+  "properties": {
+    "promises": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "event"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "event": {
+            "type": "object",
+            "required": [
+              "id",
+              "position",
+              "rationale",
+              "evidence",
+              "meaning",
+              "action"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "position": {
+                "type": "object",
+                "required": [
+                  "sceneId",
+                  "narrativeIndex",
+                  "wordPosition",
+                  "ordinal"
+                ],
+                "properties": {
+                  "sceneId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "narrativeIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "wordPosition": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "sceneId",
+                    "textHash",
+                    "start",
+                    "end",
+                    "quote",
+                    "offsetUnit"
+                  ],
+                  "properties": {
+                    "sceneId": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "textHash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "quote": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 20000
+                    },
+                    "offsetUnit": {
+                      "type": "string",
+                      "const": "utf16"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "maxItems": 100
+              },
+              "meaning": {
+                "type": "string",
+                "maxLength": 20000
+              },
+              "action": {
+                "enum": [
+                  "introduce",
+                  "sustain",
+                  "transform",
+                  "misdirect",
+                  "defer",
+                  "resolve",
+                  "abandon",
+                  "intentional_nonresolution",
+                  "reopen"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 30
+    },
+    "motifs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "event"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "event": {
+            "type": "object",
+            "required": [
+              "id",
+              "position",
+              "rationale",
+              "evidence",
+              "meaning",
+              "action"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "position": {
+                "type": "object",
+                "required": [
+                  "sceneId",
+                  "narrativeIndex",
+                  "wordPosition",
+                  "ordinal"
+                ],
+                "properties": {
+                  "sceneId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "narrativeIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "wordPosition": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "sceneId",
+                    "textHash",
+                    "start",
+                    "end",
+                    "quote",
+                    "offsetUnit"
+                  ],
+                  "properties": {
+                    "sceneId": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "textHash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "quote": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 20000
+                    },
+                    "offsetUnit": {
+                      "type": "string",
+                      "const": "utf16"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "maxItems": 100
+              },
+              "meaning": {
+                "type": "string",
+                "maxLength": 20000
+              },
+              "action": {
+                "enum": [
+                  "introduce",
+                  "recur",
+                  "transform",
+                  "omit",
+                  "dormant",
+                  "retire",
+                  "reactivate"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 30
+    },
+    "affordances": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "use"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "use": {
+            "type": "object",
+            "required": [
+              "id",
+              "position",
+              "evidence"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "position": {
+                "type": "object",
+                "required": [
+                  "sceneId",
+                  "narrativeIndex",
+                  "wordPosition",
+                  "ordinal"
+                ],
+                "properties": {
+                  "sceneId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "narrativeIndex": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "wordPosition": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "sceneId",
+                    "textHash",
+                    "start",
+                    "end",
+                    "quote",
+                    "offsetUnit"
+                  ],
+                  "properties": {
+                    "sceneId": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "textHash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "quote": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 20000
+                    },
+                    "offsetUnit": {
+                      "type": "string",
+                      "const": "utf16"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 100
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 30
+    }
+  },
+  "additionalProperties": false
+}

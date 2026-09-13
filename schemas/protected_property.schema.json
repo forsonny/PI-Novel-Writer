@@ -1,0 +1,91 @@
+{
+  "type": "object",
+  "required": [
+    "id",
+    "kind",
+    "requirement",
+    "spans",
+    "readings",
+    "method"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "kind": {
+      "enum": [
+        "exact_text",
+        "fact",
+        "implication",
+        "ambiguity",
+        "silence",
+        "voice_feature"
+      ]
+    },
+    "requirement": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "spans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "sceneId",
+          "textHash",
+          "start",
+          "end",
+          "quote",
+          "offsetUnit"
+        ],
+        "properties": {
+          "sceneId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "textHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "offsetUnit": {
+            "type": "string",
+            "const": "utf16"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "readings": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "method": {
+      "enum": [
+        "direct",
+        "model_assisted",
+        "human"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

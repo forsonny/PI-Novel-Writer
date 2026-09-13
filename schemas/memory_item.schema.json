@@ -1,0 +1,321 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "projectId",
+    "source",
+    "channel",
+    "kind",
+    "text",
+    "textHash",
+    "status",
+    "authority",
+    "epistemicStatus",
+    "roles",
+    "visibility",
+    "holderId",
+    "availableFrom",
+    "when",
+    "dependencies",
+    "requiredContext",
+    "tags",
+    "salience",
+    "rights",
+    "providerTransmissionAllowed"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "key",
+        "hash"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "channel": {
+      "enum": [
+        "narrative",
+        "stylistic"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "state",
+        "knowledge",
+        "experience",
+        "promise",
+        "motif",
+        "summary",
+        "prose",
+        "anchor",
+        "affordance",
+        "diagnosis"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500000
+    },
+    "textHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "status": {
+      "enum": [
+        "accepted",
+        "provisional",
+        "superseded",
+        "rejected"
+      ]
+    },
+    "authority": {
+      "enum": [
+        "canonical",
+        "verified_summary",
+        "summary",
+        "plan",
+        "example",
+        "interpretation"
+      ]
+    },
+    "epistemicStatus": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "planner",
+          "drafter",
+          "critic",
+          "validator",
+          "reviser"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 5
+    },
+    "visibility": {
+      "enum": [
+        "project",
+        "focalizer",
+        "participants",
+        "validator_only"
+      ]
+    },
+    "holderId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "availableFrom": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "when": {
+      "type": "object",
+      "required": [
+        "focalizerIds",
+        "sceneFunctions",
+        "epochIds",
+        "pressures",
+        "distances"
+      ],
+      "properties": {
+        "focalizerIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "maxItems": 100
+        },
+        "sceneFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        },
+        "epochIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "maxItems": 100
+        },
+        "pressures": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        },
+        "distances": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        }
+      },
+      "additionalProperties": false
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "requiredContext": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "salience": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "rights": {
+      "type": "object",
+      "required": [
+        "status",
+        "basis",
+        "permitted",
+        "livingAuthor",
+        "permissionRecorded"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "author_owned",
+            "licensed",
+            "public_domain",
+            "analysis_only",
+            "excluded",
+            "unknown"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "permitted": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "drafting",
+              "analysis",
+              "release"
+            ]
+          },
+          "maxItems": 3
+        },
+        "livingAuthor": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permissionRecorded": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "providerTransmissionAllowed": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

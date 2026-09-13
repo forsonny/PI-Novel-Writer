@@ -8,7 +8,10 @@ import { Type } from "typebox";
 import { withFileMutationQueue, truncateHead } from "@earendil-works/pi-coding-agent";
 import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { readText, writeText } from "./utils/platform.ts";
-import { getProject, replacePassage, parseFrontmatter, countWords, saveScene } from "./novel-core.ts";
+import { projectPath } from "./utils/safety.ts";
+import { proseHash, expectVersion } from "./llgf/version.ts";
+import { Hash } from "./llgf/schema.ts";
+import { getProject, refreshProject, replacePassage, parseFrontmatter, countWords, saveScene } from "./novel-core.ts";
 
 export default function novelEditExtension(pi: any) {
 
@@ -85,7 +88,7 @@ export default function novelEditExtension(pi: any) {
         pi.sendMessage({ customType: "markdown", content: "No project loaded.", display: true });
         return;
       }
-      const suggestionsPath = path.join(project.rootPath, ".pi", "edit-suggestions.json");
+      const suggestionsPath = projectPath(project.rootPath, ".pi/edit-suggestions.json");
       if (!fs.existsSync(suggestionsPath)) {
         pi.sendMessage({ customType: "novel-suggestions", content: "No pending suggestions.", display: true, details: { suggestions: [] } });
         return;
@@ -108,7 +111,7 @@ export default function novelEditExtension(pi: any) {
   function getSuggestionsFile() {
     const project = getProject();
     if (!project) return null;
-    const suggestionsPath = path.join(project.rootPath, ".pi", "edit-suggestions.json");
+    const suggestionsPath = projectPath(project.rootPath, ".pi/edit-suggestions.json");
     if (!fs.existsSync(suggestionsPath)) {
       writeText(suggestionsPath, JSON.stringify({ pending: [], accepted: [], rejected: [] }, null, 2));
     }
@@ -123,17 +126,27 @@ export default function novelEditExtension(pi: any) {
     parameters: Type.Object({
       chapter: Type.Number(),
       scene: Type.Number(),
-      original_text: Type.String(),
+      expectedSourceHash: Hash,
+      original_text: Type.String({ minLength: 1 }),
       suggested_text: Type.String(),
       rationale: Type.String()
     }),
     execute: async (_id: string, params: any) => {
       const suggestionsPath = getSuggestionsFile();
       if (!suggestionsPath) return { content: [{ type: "text", text: "No project loaded." }] };
-      const data = JSON.parse(readText(suggestionsPath));
+      const p = refreshProject(); if (!p) throw new Error("No project loaded");
+      const scene = p.scenes.get(`${String(params.chapter).padStart(2, '0')}-${String(params.scene).padStart(2, '0')}`);
+      if (!scene) throw new Error("Scene not found");
+      const body = parseFrontmatter(readText(scene.filePath)).body;
+      expectVersion(body, params.expectedSourceHash);
+      if (body.split(params.original_text).length !== 2) throw new Error("Original passage must occur exactly once in current prose");
       const newId = `sug_${randomUUID()}`;
-      data.pending.push({ id: newId, ...params, timestamp: Date.now() });
-      writeText(suggestionsPath, JSON.stringify(data, null, 2));
+      await withFileMutationQueue(suggestionsPath, async () => {
+        const data = JSON.parse(readText(suggestionsPath));
+        data.pending.push({ id: newId, ...params, sourceHash: params.expectedSourceHash, sceneId: scene.id ?? null,
+          sourcePath: path.relative(p.rootPath, scene.filePath), timestamp: Date.now() });
+        writeText(suggestionsPath, JSON.stringify(data, null, 2));
+      });
       return { content: [{ type: "text", text: `Suggestion ${newId} logged.` }] };
     }
   });
@@ -165,12 +178,17 @@ export default function novelEditExtension(pi: any) {
     execute: async (_id: string, params: any) => {
       const suggestionsPath = getSuggestionsFile();
       if (!suggestionsPath) return { content: [{ type: "text", text: "No project loaded." }] };
+      const root = getProject()!.rootPath;
       await withFileMutationQueue(suggestionsPath, async () => {
         const data = JSON.parse(readText(suggestionsPath));
         const idx = data.pending.findIndex((s:any) => s.id === params.id);
         if (idx === -1) throw new Error(`Suggestion ${params.id} not found.`);
         const sug = data.pending[idx];
-        await replacePassage(sug.chapter, sug.scene, sug.original_text, sug.suggested_text);
+        if (!sug.sourceHash) throw new Error("Legacy suggestion has no source version. Re-read and create a new suggestion; the original is retained.");
+        const p = refreshProject(); if (!p || p.rootPath !== root) throw new Error("The loaded project changed before accepting the suggestion");
+        const scene = [...p.scenes.values()].find(s => sug.sceneId ? s.id === sug.sceneId : path.relative(root, s.filePath) === sug.sourcePath);
+        if (!scene) throw new Error("Suggestion's scene is missing or has moved without a stable identity");
+        await replacePassage(scene.chapter, scene.scene, sug.original_text, sug.suggested_text, sug.sourceHash, root);
         data.pending.splice(idx, 1);
         data.accepted.push(sug);
         writeText(suggestionsPath, JSON.stringify(data, null, 2));
@@ -187,6 +205,7 @@ export default function novelEditExtension(pi: any) {
     execute: async (_id: string, params: any) => {
       const suggestionsPath = getSuggestionsFile();
       if (!suggestionsPath) return { content: [{ type: "text", text: "No project loaded." }] };
+      return withFileMutationQueue(suggestionsPath, async () => {
       const data = JSON.parse(readText(suggestionsPath));
       const idx = data.pending.findIndex((s:any) => s.id === params.id);
       if (idx === -1) return { content: [{ type: "text", text: `Suggestion ${params.id} not found.` }] };
@@ -195,6 +214,7 @@ export default function novelEditExtension(pi: any) {
       data.rejected.push(sug);
       writeText(suggestionsPath, JSON.stringify(data, null, 2));
       return { content: [{ type: "text", text: `Suggestion ${params.id} rejected.` }] };
+      });
     }
   });
 
@@ -206,12 +226,14 @@ export default function novelEditExtension(pi: any) {
     execute: async (_id: string, params: any) => {
       const suggestionsPath = getSuggestionsFile();
       if (!suggestionsPath) return { content: [{ type: "text", text: "No project loaded." }] };
+      return withFileMutationQueue(suggestionsPath, async () => {
       const data = JSON.parse(readText(suggestionsPath));
       const sug = data.pending.find((s:any) => s.id === params.id);
       if (!sug) return { content: [{ type: "text", text: `Suggestion ${params.id} not found.` }] };
       sug.suggested_text = params.new_suggested_text;
       writeText(suggestionsPath, JSON.stringify(data, null, 2));
       return { content: [{ type: "text", text: `Suggestion ${params.id} modified.` }] };
+      });
     }
   });
 
@@ -224,7 +246,8 @@ export default function novelEditExtension(pi: any) {
       scene: Type.Number(),
       line_start: Type.Number(),
       line_end: Type.Number(),
-      new_content: Type.String()
+      new_content: Type.String(),
+      expectedSourceHash: Hash
     }),
     execute: async (_id: string, params: any) => {
       const project = getProject();
@@ -244,6 +267,7 @@ export default function novelEditExtension(pi: any) {
         body = content.slice(frontmatter.length);
       }
       
+      expectVersion(body, params.expectedSourceHash);
       const lines = body.split("\n");
       if (!Number.isInteger(params.line_start) || !Number.isInteger(params.line_end) ||
           params.line_start < 1 || params.line_end < params.line_start || params.line_end > lines.length) {

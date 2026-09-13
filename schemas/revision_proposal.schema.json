@@ -1,0 +1,95 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "sceneId",
+    "sourceHash",
+    "pass",
+    "diagnosisIds",
+    "decision",
+    "patches",
+    "rationale"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "sceneId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sourceHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pass": {
+      "enum": [
+        "state-repair",
+        "scene-function",
+        "focalization-distance",
+        "character-dialogue",
+        "exposition-inference",
+        "imagery-sensory",
+        "rhythm-paragraph",
+        "voice-fidelity",
+        "repetition-motif",
+        "compression-ambiguity",
+        "line-integrity"
+      ]
+    },
+    "diagnosisIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "minItems": 1,
+      "maxItems": 50
+    },
+    "decision": {
+      "enum": [
+        "keep_source",
+        "propose"
+      ]
+    },
+    "patches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "original",
+          "replacement"
+        ],
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "original": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "replacement": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    }
+  },
+  "additionalProperties": false
+}

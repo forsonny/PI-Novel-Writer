@@ -1,0 +1,231 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "kind",
+    "function",
+    "when",
+    "excerpt",
+    "sourceSpan",
+    "sourceRecords",
+    "narrativeIndex",
+    "rights",
+    "wordingPolicy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "kind": {
+      "enum": [
+        "anchor",
+        "anti_anchor"
+      ]
+    },
+    "function": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "when": {
+      "type": "object",
+      "required": [
+        "focalizerIds",
+        "sceneFunctions",
+        "epochIds",
+        "pressures",
+        "distances"
+      ],
+      "properties": {
+        "focalizerIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "maxItems": 100
+        },
+        "sceneFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        },
+        "epochIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "maxItems": 100
+        },
+        "pressures": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        },
+        "distances": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        }
+      },
+      "additionalProperties": false
+    },
+    "excerpt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "sourceSpan": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "sceneId",
+            "textHash",
+            "start",
+            "end",
+            "quote",
+            "offsetUnit"
+          ],
+          "properties": {
+            "sceneId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "textHash": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "end": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "quote": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            },
+            "offsetUnit": {
+              "type": "string",
+              "const": "utf16"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceRecords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "narrativeIndex": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "rights": {
+      "type": "object",
+      "required": [
+        "status",
+        "basis",
+        "permitted",
+        "livingAuthor",
+        "permissionRecorded"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "author_owned",
+            "licensed",
+            "public_domain",
+            "analysis_only",
+            "excluded",
+            "unknown"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "permitted": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "drafting",
+              "analysis",
+              "release"
+            ]
+          },
+          "maxItems": 3
+        },
+        "livingAuthor": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permissionRecorded": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "wordingPolicy": {
+      "type": "string",
+      "const": "function_only"
+    }
+  },
+  "additionalProperties": false
+}

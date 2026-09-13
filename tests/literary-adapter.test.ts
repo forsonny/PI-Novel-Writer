@@ -28,11 +28,11 @@ test('Pi tools expose prepared bounded pipeline without granting permission on l
     await assert.rejects(f.pi.call('novel_literary_run', { jobId: id }, f.ctx), /Authorize/);
     await f.command('authorize 12 300000');
     const r = await f.pi.call('novel_literary_run', { jobId: id }, f.ctx);
-    assert.equal(JSON.parse(r.content[0].text).stage, 'ready'); assert.equal(f.worker.calls(), 3);
+    assert.equal(JSON.parse(r.content[0].text).stage, 'ready'); assert.equal(f.worker.calls(), 4);
     await f.pi.call('novel_literary_accept', { jobId: id }, f.ctx);
     assert.ok(f.store.get(`acceptance:${f.address.id}`));
     const status = JSON.parse((await f.pi.call('novel_literary_status', {}, f.ctx)).content[0].text);
-    assert.equal(status.authority.calls, 9); assert.ok(status.authority.tokens > 0);
+    assert.equal(status.authority.calls, 8); assert.ok(status.authority.tokens > 0);
   } finally { f.dispose(); }
 });
 test('pause, model change and new user instructions revoke worker authority', async () => {

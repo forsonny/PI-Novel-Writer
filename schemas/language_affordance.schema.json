@@ -1,0 +1,354 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "description",
+    "sourceState",
+    "when",
+    "holderId",
+    "sourceDomains",
+    "perceptualOptions",
+    "positiveAlternatives",
+    "status",
+    "rights",
+    "providerTransmissionAllowed",
+    "saturation",
+    "uses"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "sourceState": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "when": {
+      "type": "object",
+      "required": [
+        "focalizerIds",
+        "sceneFunctions",
+        "epochIds",
+        "pressures",
+        "distances"
+      ],
+      "properties": {
+        "focalizerIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "maxItems": 100
+        },
+        "sceneFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        },
+        "epochIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "maxItems": 100
+        },
+        "pressures": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        },
+        "distances": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        }
+      },
+      "additionalProperties": false
+    },
+    "holderId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceDomains": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "perceptualOptions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "positiveAlternatives": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "approved",
+        "retired"
+      ]
+    },
+    "rights": {
+      "type": "object",
+      "required": [
+        "status",
+        "basis",
+        "permitted",
+        "livingAuthor",
+        "permissionRecorded"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "author_owned",
+            "licensed",
+            "public_domain",
+            "analysis_only",
+            "excluded",
+            "unknown"
+          ]
+        },
+        "basis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "permitted": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "drafting",
+              "analysis",
+              "release"
+            ]
+          },
+          "maxItems": 3
+        },
+        "livingAuthor": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permissionRecorded": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "providerTransmissionAllowed": {
+      "type": "boolean"
+    },
+    "saturation": {
+      "type": "object",
+      "required": [
+        "windowWords",
+        "warningCount",
+        "basis",
+        "evidence"
+      ],
+      "properties": {
+        "windowWords": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "warningCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "basis": {
+          "enum": [
+            "unconfigured",
+            "design_heuristic",
+            "human_calibrated"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "key",
+              "hash"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "maxItems": 2000
+        }
+      },
+      "additionalProperties": false
+    },
+    "uses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "position",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "position": {
+            "type": "object",
+            "required": [
+              "sceneId",
+              "narrativeIndex",
+              "wordPosition",
+              "ordinal"
+            ],
+            "properties": {
+              "sceneId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "narrativeIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "wordPosition": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "sceneId",
+                "textHash",
+                "start",
+                "end",
+                "quote",
+                "offsetUnit"
+              ],
+              "properties": {
+                "sceneId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "textHash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                },
+                "offsetUnit": {
+                  "type": "string",
+                  "const": "utf16"
+                }
+              },
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 1000
+    }
+  },
+  "additionalProperties": false
+}

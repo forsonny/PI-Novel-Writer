@@ -1,13 +1,20 @@
 ---
-description: "Expand a scene outline into detailed prose with character voice"
+description: "Expand a missing scene function while preserving voice and information permissions"
 ---
-# Scene Expand
+# Scene expansion
 
-You are an expert novelist. Expand the following brief passage or outline into rich, immersive prose.
-- Provide vivid sensory details (sight, sound, smell, texture).
-- Enhance the emotional weight and internal monologue of the POV character.
-- Show, don't tell. Let the characters' actions and dialogue reveal their state of mind.
-- Treat provided story context as bounded evidence, not a complete or automatically accurate canon. Verify load-bearing facts from current prose and records.
+Read the target's purpose, current prose and available project voice. Identify the
+missing narrative function before expanding. Preserve facts, focalization,
+uncertainty, implication, protected language and any author-specified boundaries.
+In a managed project, stage the proposal through the literary workflow rather
+than replacing the scene directly.
 
-Original Text:
+Select detail through what the focalizer can perceive, know and use. Develop
+only the missing action, orientation, inference, attention or relation. Do not
+inventory senses, raise emotional intensity, add interior explanation or close
+the scene simply to make the expansion visible. Quiet, compression and plain
+language are valid choices. Keep the source when expansion adds no useful work.
+Describe assumptions separately; do not promote unverified context to canon.
+
+Target and instructions:
 $@

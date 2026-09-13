@@ -1,0 +1,71 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "packetId",
+    "pairId",
+    "readerIdHash",
+    "task",
+    "preference",
+    "evidence",
+    "confidence",
+    "completedAt",
+    "suppliedBy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "packetId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pairId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+    },
+    "readerIdHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "task": {
+      "enum": [
+        "literary_preference",
+        "voice_matching",
+        "continuity",
+        "ambiguity",
+        "continuous_reading"
+      ]
+    },
+    "preference": {
+      "enum": [
+        "left",
+        "right",
+        "tie",
+        "cannot_judge"
+      ]
+    },
+    "evidence": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "confidence": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "completedAt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "suppliedBy": {
+      "type": "string",
+      "const": "external_reader_record"
+    }
+  },
+  "additionalProperties": false
+}

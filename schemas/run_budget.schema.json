@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "required": [
+    "maxCalls",
+    "maxReservedTokens",
+    "maxCost",
+    "maxRevisions"
+  ],
+  "properties": {
+    "maxCalls": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000
+    },
+    "maxReservedTokens": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "maxCost": {
+      "anyOf": [
+        {
+          "type": "number",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "maxRevisions": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10
+    }
+  },
+  "additionalProperties": false
+}

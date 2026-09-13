@@ -130,3 +130,17 @@ export function composeContext(request: ContextRequest, values: MemoryItem[]): C
   };
   return { text, hash: objectHash({ text, receipt }), receipt };
 }
+
+/** Isolated evidence-only packets for cold reconstruction and whole-sequence
+ * audits. Inputs are explicit; there is no implicit contract or parent history. */
+export function evidencePacket(projectId: string, scopeId: string, role: LiteraryRole, input: unknown, sources: SourceRef[], budget: ContextRequest['budget']): ContextPacket {
+  checked(Id, projectId); checked(Id, scopeId); checked(RoleSchema, role); checked(Sources, sources);
+  if (Object.values(budget).some(n => !Number.isSafeInteger(n) || n < 0) || !budget.modelWindow || !budget.outputReserve) throw new Error('Invalid evidence packet budget');
+  const text = canonicalJson(input), tokens = estimateTokens(text);
+  if (tokens > budget.maxInputTokens || tokens + budget.hostTokens + budget.outputReserve + budget.safetyReserve > budget.modelWindow) throw new Error('Complete evidence does not fit; reduce the declared scope, not silent coverage');
+  const receipt: ContextReceipt = { schemaVersion: 1, method: 'symbolic-context-v1', projectId, sceneId: scopeId, role,
+    included: sources.map(s => ({ id: s.key.split(':')[1], source: s, reason: 'Explicit evidence-only scope', estimatedTokens: 0, channel: 'narrative' })), omitted: [], dependencies: sources,
+    requiredCoverage: sources.map(s => ({ ...s, included: true })), inputEstimatedTokens: tokens, reservedOutputTokens: budget.outputReserve, hostTokens: budget.hostTokens,
+    safetyReserve: budget.safetyReserve, modelWindow: budget.modelWindow, tokenMethod: 'utf8-bytes-divided-by-four', warnings: ['Explicit evidence-only packet. No parent history or undisclosed intent. Per-item token attribution is unavailable; the complete packet estimate is reported.'] };
+  return { text, hash: objectHash({ text, receipt }), receipt };
+}

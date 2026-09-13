@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "enabled",
+    "governance",
+    "compute",
+    "createdAt",
+    "importedState",
+    "contentPolicy",
+    "sourcePolicy",
+    "disclosurePolicy"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "governance": {
+      "enum": [
+        "collaborative",
+        "delegated",
+        "research"
+      ]
+    },
+    "compute": {
+      "enum": [
+        "minimal",
+        "standard",
+        "experimental"
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "importedState": {
+      "type": "string",
+      "const": "unverified"
+    },
+    "contentPolicy": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "sourcePolicy": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "disclosurePolicy": {
+      "type": "string",
+      "maxLength": 20000
+    }
+  },
+  "additionalProperties": false
+}

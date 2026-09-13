@@ -35,3 +35,10 @@ Freshness checks are mechanical, not factual validation. Existing project guidan
 does not update automatically. Delete tools archive scenes/bible entries, while
 merge removes its second active scene only after archiving both originals. GitHub
 connect can force-push; export is Markdown plus optional DOCX only.
+
+## Managed literary workflow (0.3.0 release candidate)
+
+Read `help/literary/help.md`, `help/literary/walkthrough.md` and
+`help/literary/resources.md` for opt-in migration, bounded workers, accepted
+snapshots, sequence audits, recovery and explicit authority. These managed paths
+supersede the legacy writing/review completion path only after author opt-in.

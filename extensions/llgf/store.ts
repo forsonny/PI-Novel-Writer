@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { Type, type Static } from 'typebox';
 import { projectPath } from '../utils/safety.ts';
 import { canonicalJson, hashText, newId, requireHash, requireId } from './version.ts';
@@ -12,6 +13,22 @@ export type Snapshot = Static<typeof SnapshotSchema>;
 export interface SnapshotRef { hash: string; snapshot: Snapshot }
 export interface CommitRequest { expectedHead: string; requestId: string; changes: SourceRef[]; dependencies: SourceRef[] }
 export interface CommitResult extends SnapshotRef { replayed: boolean; durabilityWarning?: string }
+export interface RestorePreview { projectId: string; expectedHead: string; targetHead: string; changes: { key: string; before: string | null; after: string | null }[]; digest: string }
+const StoreLockSchema = Strict({ token: Id, pid: Type.Integer({ minimum: 1 }), host: Short, createdAt: Timestamp });
+export function inspectStoreLock(root: string) {
+  const file = projectPath(root, '.pnw/write.lock'); if (!fs.existsSync(file)) return null;
+  if (fs.statSync(file).size > 4096) throw new Error('Invalid store lock');
+  return checked(StoreLockSchema, JSON.parse(fs.readFileSync(file, 'utf8')), 'store lock');
+}
+export function recoverStoreLock(root: string, token: string): void {
+  checked(Id, token); const lock = inspectStoreLock(root);
+  if (!lock || lock.token !== token) throw new Error('Store lock changed');
+  if (lock.host !== os.hostname()) throw new Error('Store lock belongs to another machine; do not guess its owner status');
+  try { process.kill(lock.pid, 0); throw new Error('Store owner is still running'); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
+  if (inspectStoreLock(root)?.token !== token) throw new Error('Store lock changed');
+  fs.unlinkSync(projectPath(root, '.pnw/write.lock'));
+}
 export interface StoreFaults { beforeHeadSwap?: () => void }
 
 /** Local content-addressed store. HEAD alone chooses the accepted snapshot.
@@ -72,7 +89,20 @@ export class LiteraryStore {
   }
   stale(sources: SourceRef[], at: SnapshotRef = this.head()): SourceRef[] {
     checked(Sources, sources, 'dependencies');
-    return sources.filter(ref => at.snapshot.versions[ref.key] !== ref.hash);
+    if (at.snapshot.projectId !== this.projectId) throw new Error('Snapshot belongs to another project');
+    const memo = new Map<string, boolean>(), visiting = new Set<string>();
+    const changed = (ref: SourceRef): boolean => {
+      if (at.snapshot.versions[ref.key] !== ref.hash) return true;
+      const identity = `${ref.key}@${ref.hash}`;
+      if (memo.has(identity)) return memo.get(identity)!;
+      if (visiting.has(identity)) throw new Error('Cyclic artifact dependencies');
+      if (visiting.size > 512) throw new Error('Artifact dependency depth exceeds the supported limit');
+      const artifact = this.artifact(ref.hash);
+      if (`${artifact.kind}:${artifact.id}` !== ref.key) throw new Error('Dependency identity mismatch');
+      visiting.add(identity); const stale = artifact.sources.some(changed); visiting.delete(identity);
+      memo.set(identity, stale); return stale;
+    };
+    return sources.filter(changed);
   }
   commit(request: CommitRequest): CommitResult {
     checked(Strict({ expectedHead: Hash, requestId: Short, changes: Sources, dependencies: Sources }), request, 'commit request');
@@ -96,8 +126,46 @@ export class LiteraryStore {
         versions[ref.key] = ref.hash;
       }
       const snapshot: Snapshot = { schemaVersion: 1, projectId: this.projectId, parent: current.hash, sequence: current.snapshot.sequence + 1, createdAt: new Date().toISOString(), requestId: request.requestId, requestHash, versions, requests: { ...current.snapshot.requests, [hashText(request.requestId)]: requestHash } };
+      if (this.stale(request.changes, { hash: current.hash, snapshot }).length) throw new Error('Changed artifact has unresolved or stale source dependencies');
       const hash = this.putObject(checked(SnapshotSchema, snapshot, 'snapshot'));
       this.faults.beforeHeadSwap?.();
+      const durabilityWarning = this.swapHead(hash);
+      return { hash, snapshot, replayed: false, ...(durabilityWarning ? { durabilityWarning } : {}) };
+    });
+  }
+  previewRestore(targetHead: string): RestorePreview {
+    requireHash(targetHead); const current = this.head();
+    let next: string | null = current.hash, found = false, walked = 0;
+    while (next && walked++ < 20000) {
+      if (next === targetHead) { found = true; break; }
+      next = this.snapshot(next).parent;
+    }
+    if (!found) throw new Error('Restore target must be a verified ancestor of the accepted snapshot');
+    const target = this.snapshot(targetHead);
+    // Read every selected artifact to verify content, project and identity before
+    // proposing restoration. Old warnings remain old warnings, not new approval.
+    for (const key of Object.keys(target.versions)) this.get(key, { hash: targetHead, snapshot: target });
+    const keys = [...new Set([...Object.keys(current.snapshot.versions), ...Object.keys(target.versions)])].sort();
+    const changes = keys.filter(k => current.snapshot.versions[k] !== target.versions[k]).map(key => ({ key, before: current.snapshot.versions[key] ?? null, after: target.versions[key] ?? null }));
+    const base = { projectId: this.projectId, expectedHead: current.hash, targetHead, changes };
+    return { ...base, digest: hashText(canonicalJson(base)) };
+  }
+  /** Restore all accepted representations together in a new child snapshot.
+   * This never deletes history or overwrites the author's working files. */
+  restore(preview: RestorePreview, approvedDigest: string): CommitResult {
+    if (approvedDigest !== preview.digest || preview.projectId !== this.projectId) throw new Error('Restore approval or project differs');
+    return this.lock(() => {
+      const current = this.head();
+      if (current.hash !== preview.expectedHead) throw new Error('Restore preview is stale');
+      const fresh = this.previewRestore(preview.targetHead);
+      if (canonicalJson(fresh) !== canonicalJson(preview)) throw new Error('Restore preview was modified');
+      if (!fresh.changes.length) return { ...current, replayed: true };
+      const target = this.snapshot(fresh.targetHead), requestId = `restore-${fresh.digest}`;
+      const recovery = this.put('recovery', newId(), { expectedHead: fresh.expectedHead, targetHead: fresh.targetHead, digest: fresh.digest, actor: 'author_command', workingFiles: 'unchanged' });
+      const snapshot: Snapshot = { schemaVersion: 1, projectId: this.projectId, parent: current.hash, sequence: current.snapshot.sequence + 1,
+        createdAt: new Date().toISOString(), requestId, requestHash: fresh.digest, versions: { ...target.versions, [recovery.key]: recovery.hash },
+        requests: { ...current.snapshot.requests, [hashText(requestId)]: fresh.digest } };
+      const hash = this.putObject(checked(SnapshotSchema, snapshot)); this.faults.beforeHeadSwap?.();
       const durabilityWarning = this.swapHead(hash);
       return { hash, snapshot, replayed: false, ...(durabilityWarning ? { durabilityWarning } : {}) };
     });
@@ -143,7 +211,7 @@ export class LiteraryStore {
     }
     const token = newId();
     try {
-      fs.writeFileSync(fd, canonicalJson({ pid: process.pid, token, createdAt: new Date().toISOString() })); fs.fsyncSync(fd);
+      fs.writeFileSync(fd, canonicalJson({ pid: process.pid, host: os.hostname(), token, createdAt: new Date().toISOString() })); fs.fsyncSync(fd);
       const result = fn();
       if (result instanceof Promise) throw new Error('Asynchronous work is not allowed inside a store lock');
       return result;

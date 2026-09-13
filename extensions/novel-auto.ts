@@ -3,6 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { Type } from "typebox";
+import { managedProject } from "./llgf/migration.ts";
+import { managedCompletionIssues } from "./llgf/completion.ts";
+import { LiteraryStore } from "./llgf/store.ts";
+import { projectPath } from "./utils/safety.ts";
 import { summaryCurrent } from "./llgf/summaries.ts";
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -15,6 +19,7 @@ type Phase = typeof phases[number];
 const findingStatuses = ["supported", "uncertain", "contradicted", "not-applicable"] as const;
 const aspects = ["causality", "perspective", "progression", "continuity", "emotion", "language"] as const;
 const runFile = ".pi/novel-run.json";
+const literaryWorkflowPath = fileURLToPath(new URL("../skills/literary-workflow/SKILL.md", import.meta.url));
 const workflowPath = fileURLToPath(new URL("../skills/autonomous-novel/SKILL.md", import.meta.url));
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
 type SceneRef = { chapter: number; scene: number };
@@ -40,6 +45,9 @@ interface Run {
   reviews: Record<string, { hash: string; reconstruction: string; findings: Finding[] }>;
   blocker?: string;
   output?: string;
+  acceptedHead?: string;
+  continuationLimit?: number;
+  continuations?: number;
 }
 
 function project() {
@@ -49,7 +57,7 @@ function project() {
 }
 
 export function readRun(root: string): Run | null {
-  const file = path.join(root, runFile);
+  const file = projectPath(root, runFile);
   if (!fs.existsSync(file)) return null;
   const run = JSON.parse(readText(file)) as Run;
   if (run.version !== 1 || !phases.includes(run.phase) || !Array.isArray(run.plan) ||
@@ -60,7 +68,7 @@ export function readRun(root: string): Run | null {
 }
 
 function saveRun(root: string, run: Run) {
-  writeText(path.join(root, runFile), JSON.stringify(run, null, 2) + "\n");
+  writeText(projectPath(root, runFile), JSON.stringify(run, null, 2) + "\n");
 }
 
 function evidenceFile(root: string, relative: string) {
@@ -84,6 +92,7 @@ function requireEvidence(root: string, run: Run, relative: string) {
 }
 
 export function manuscriptIssues(p: ReturnType<typeof project>, run: Run, reviewed: boolean): string[] {
+  if (managedProject(p.rootPath)?.enabled) return managedCompletionIssues(p, run, reviewed);
   const issues: string[] = [];
   const expected = new Set(run.plan.map(s => sceneKey(s.chapter, s.scene)));
   if (!expected.size) issues.push("No scene plan recorded.");
@@ -136,10 +145,12 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
 
   const show = (content: string) => pi.sendMessage({ customType: "novel-auto-status", content, display: true });
   const continueRun = (root: string, run: Run, recovery = false) => {
+    if ((run.continuations ?? 0) >= (run.continuationLimit ?? 4000)) { pause("The bounded continuation limit was reached. Inspect work and explicitly resume with --turns <limit>.", true); return; }
+    run.continuations = (run.continuations ?? 0) + 1; saveRun(root, run);
     startRevision = run.revision;
     pi.sendMessage({
       customType: "novel-auto-continue",
-      content: `Continue the authorized novel-writing run in ${root}. Consult novel_auto_status for the next unit. Use ${workflowPath}; read it only if unavailable in the current context. Read the relevant scene and changed dependencies, not the entire artifact index or previously read theses on every unit. Complete one substantive unit, then call novel_auto_checkpoint; it ends the unit and automatic continuation proceeds. No milestone approvals. ${recovery ? "The previous response saved no checkpoint: inspect actual work, save its evidence, or report a genuine blocker. Do not repeat a status-only response." : ""}`,
+      content: `Continue the authorized novel-writing run in ${root}. Consult novel_auto_status for the next unit. Use ${workflowPath}${managedProject(root)?.enabled ? ` and ${literaryWorkflowPath}. Managed scenes must use prepare/run/accept and current sequence audits; worker allowance is separate from coordinator usage` : ""}; read it only if unavailable in the current context. Read the relevant scene and changed dependencies, not the entire artifact index or previously read theses on every unit. Complete one substantive unit, then call novel_auto_checkpoint; it ends the unit and automatic continuation proceeds. No milestone approvals. ${recovery ? "The previous response saved no checkpoint: inspect actual work, save its evidence, or report a genuine blocker. Do not repeat a status-only response." : ""}`,
       display: false
     }, { triggerTurn: true, deliverAs: "followUp" });
   };
@@ -147,6 +158,7 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
     const root = armedRoot;
     armedRoot = undefined;
     if (!root) return;
+    pi.events.emit("novel:literary-revoke", { root });
     const run = readRun(root);
     if (!run || run.status === "complete") return;
     run.status = blocked ? "blocked" : "paused";
@@ -178,9 +190,15 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
   }
 
   pi.registerCommand("PNW-auto", {
-    description: "Write through a reviewed draft: start <brief> | status [full] | pause | resume",
+    description: "Write through a reviewed draft: start [--calls N --tokens N --turns N] <brief> | status [full] | pause | resume [--calls N --tokens N --turns N]",
     handler: async (args, ctx) => {
-      const [action = "status", ...rest] = args.trim().split(/\s+/).filter(Boolean);
+      const [action = "status", ...rawRest] = args.trim().split(/\s+/).filter(Boolean);
+      const rest = [...rawRest], limits: Record<string, number> = {};
+      if (["start", "resume"].includes(action)) while (rest[0]?.startsWith("--")) {
+        const key = rest.shift()!, value = rest.shift();
+        if (!["--calls", "--tokens", "--turns"].includes(key) || limits[key] !== undefined || !value || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) < 1) throw new Error("Invalid or duplicate autonomous budget option");
+        limits[key] = Number(value);
+      }
       if (action === "pause") {
         pause("Paused by the author.");
         await ctx.abort();
@@ -214,6 +232,15 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
         }
         if (run.phase === "complete") run.phase = "review";
       }
+      const managed = managedProject(p.rootPath);
+      if (managed?.enabled) {
+        if (managed.governance !== "delegated") throw new Error("Autonomous managed writing needs delegated governance; collaboration/research remain separately controlled.");
+        if (!limits["--calls"] || !limits["--tokens"]) throw new Error("Managed start/resume requires explicit --calls N --tokens N for isolated workers. Coordinator model usage is separate.");
+        let handled = false;
+        pi.events.emit("novel:literary-authorize", { root: p.rootPath, ctx, calls: limits["--calls"], tokens: limits["--tokens"], reply: () => { handled = true; } });
+        if (!handled) throw new Error("Load the literary extension before managed autonomous writing");
+      } else if (limits["--calls"] || limits["--tokens"]) throw new Error("Worker budgets require an enabled managed project");
+      if (limits["--turns"]) { next!.continuationLimit = limits["--turns"]; next!.continuations = 0; }
       next!.status = "running";
       delete next!.blocker;
       saveRun(p.rootPath, next!);
@@ -275,7 +302,9 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
       }
       const delta = phases.indexOf(params.phase) - phases.indexOf(run.phase);
       if (delta < 0 || delta > 1) throw new Error("Complete phases in order; repair earlier documents without resetting the run.");
-      let changed = false;
+      const acceptedHead = managedProject(p.rootPath)?.enabled ? LiteraryStore.open(p.rootPath).head().hash : undefined;
+      let changed = acceptedHead !== undefined && acceptedHead !== run.acceptedHead;
+      if (acceptedHead) run.acceptedHead = acceptedHead;
       for (const relative of params.evidence) {
         const item = evidenceFile(p.rootPath, relative);
         const digest = hash(item.text);
@@ -319,7 +348,7 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
       }
       if (params.phase === "complete") {
         requireEvidence(p.rootPath, run, "notes/auto-review.md");
-        run.output = compileManuscriptInternal(p);
+        run.output = compileManuscriptInternal(p, { mode: managedProject(p.rootPath)?.enabled ? "accepted" : "working", requireComplete: !!managedProject(p.rootPath)?.enabled });
         run.status = "complete";
       }
       run.phase = params.phase;
@@ -382,7 +411,7 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
       const run = readRun(armedRoot);
       if (run?.status === "running") messages.push({
         role: "custom", customType: "novel-auto-state", display: false, timestamp: Date.now(),
-        content: `Active novel: ${armedRoot}\nAuthorized brief: ${run.brief}\nPhase: ${run.phase}\nNext: ${run.next}\nSaved state: ${path.join(armedRoot, runFile)}`
+        content: `Active novel: ${armedRoot}\nAuthorized brief: ${run.brief}\nPhase: ${run.phase}\nNext: ${run.next}\nSaved state: ${path.join(armedRoot, runFile)}${managedProject(armedRoot)?.enabled ? `\nManaged workflow: ${literaryWorkflowPath}. Preserve the delegated voice, source policies and worker allowance. No raw scene rewrite or self-issued quality approvals. Use current acceptance and sequence audit evidence.` : ""}`
       });
     }
     return { messages };
@@ -390,8 +419,20 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
   pi.on("input", (event) => {
     if (event.source !== "extension") pause("Paused for the author's new instruction.");
   });
-  pi.on("tool_call", (event) => {
+  pi.on("tool_call", (event, ctx) => {
     if (!armedRoot) return;
+    if (managedProject(armedRoot)?.enabled) {
+      if (["bash", "powershell", "exec"].includes(event.toolName)) return { block: true, reason: "Managed unattended writing does not authorize shell execution. Use bounded novel tools; pause for author-directed maintenance." };
+      if (["write", "edit"].includes(event.toolName)) {
+        const target = "path" in event.input ? event.input.path : undefined;
+        if (typeof target !== "string") return { block: true, reason: "A scoped data-file path is required." };
+        try {
+          const file = projectPath(armedRoot, path.resolve(ctx.cwd, target)), rel = path.relative(fs.realpathSync(armedRoot), file).replaceAll("\\", "/");
+          if (/^(manuscript|summaries)\//.test(rel) || rel.split("/").some(p => p.startsWith("."))) return { block: true, reason: "Direct prose, summary, and managed-state writes bypass version checks. Use the managed tools." };
+        } catch { return { block: true, reason: "Unattended writes must stay inside the loaded novel." }; }
+      }
+    }
+    if (managedProject(armedRoot)?.enabled && ["novel_scene_write", "rewrite_passage", "expand_passage", "compress_passage", "edit_line", "edit_accept", "novel_find_replace", "novel_rename_entity", "novel_review_scene"].includes(event.toolName)) return { block: true, reason: "Managed autonomous prose must pass isolated review and atomic acceptance. Use novel_literary_prepare/run/accept." };
     if (event.toolName.startsWith("novel_github_") ||
         ["novel_scene_delete", "novel_scene_merge", "novel_scene_move", "novel_scene_split", "outline_chapter_reorder"].includes(event.toolName)) {
       return { block: true, reason: "Unattended writing does not authorize remote changes or destructive restructuring. Preserve the current work." };

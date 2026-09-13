@@ -1,0 +1,285 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "sceneId",
+    "textHash",
+    "taxonomyVersion",
+    "assessedPatternIds",
+    "findings",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "sceneId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "textHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "taxonomyVersion": {
+      "type": "string",
+      "const": "beyond-fluency-2026-09-11/v1"
+    },
+    "assessedPatternIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      },
+      "maxItems": 56
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "patternId",
+          "rubric",
+          "severity",
+          "status",
+          "scope",
+          "method",
+          "methodVersion",
+          "confidence",
+          "evidence",
+          "displacedFunction",
+          "counterevidence",
+          "cause",
+          "pairedRisk",
+          "recommendation",
+          "intervention",
+          "successTest",
+          "protectedIds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "patternId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "rubric": {
+            "enum": [
+              "chapter5-0-4",
+              "appendixB-0-3"
+            ]
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "unassessed",
+              "absent",
+              "licensed",
+              "uncertain",
+              "suspected",
+              "confirmed"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "sentence",
+              "paragraph",
+              "scene",
+              "chapter",
+              "arc",
+              "manuscript"
+            ]
+          },
+          "method": {
+            "enum": [
+              "direct",
+              "proxy",
+              "model_assisted",
+              "human"
+            ]
+          },
+          "methodVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "low"
+              },
+              {
+                "type": "string",
+                "const": "medium"
+              },
+              {
+                "type": "string",
+                "const": "high"
+              }
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "sceneId",
+                "textHash",
+                "start",
+                "end",
+                "quote",
+                "offsetUnit"
+              ],
+              "properties": {
+                "sceneId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "textHash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                },
+                "offsetUnit": {
+                  "type": "string",
+                  "const": "utf16"
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "displacedFunction": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "counterevidence": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "cause": {
+            "type": "object",
+            "required": [
+              "level",
+              "hypothesis",
+              "basis"
+            ],
+            "properties": {
+              "level": {
+                "enum": [
+                  "state",
+                  "plan",
+                  "context",
+                  "generation",
+                  "revision",
+                  "long_range",
+                  "unknown"
+                ]
+              },
+              "hypothesis": {
+                "type": "string",
+                "maxLength": 20000
+              },
+              "basis": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "key",
+                    "hash"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "hash": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "maxItems": 2000
+              }
+            },
+            "additionalProperties": false
+          },
+          "pairedRisk": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "recommendation": {
+            "enum": [
+              "no_action",
+              "inspect",
+              "repair_state",
+              "repair_context",
+              "repair_plan",
+              "revise",
+              "branch",
+              "human_review"
+            ]
+          },
+          "intervention": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "successTest": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "protectedIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "maxItems": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 200
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    }
+  },
+  "additionalProperties": false
+}

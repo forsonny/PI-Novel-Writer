@@ -1,21 +1,65 @@
 # pi-novel-writer
 
-A novel-writing environment for [Pi](https://github.com/earendil-works/pi).
-Version 0.2 adds an autonomous route from your initial brief through concept
-selection, outlining, drafting, revision, and a compiled, AI-reviewed manuscript.
-The existing collaborative commands remain available.
+A novel-writing environment for Pi. **0.3.0-rc.1** adds an opt-in managed
+literary workflow: conditional voice, explicit scene intent, epistemic memory,
+isolated drafting/review workers, protected revision, atomic prose/state acceptance,
+and chapter/arc/manuscript audits. Existing collaborative and legacy autonomous
+workflows remain available.
 
-Version 0.2.2 implements the corrections identified by the retained 25,011-word
-story-records audit. Existing summaries can be inspected without rewriting them;
-freshness remains a mechanical source check, never a factual verdict. Automatic
-story context covers all five bible types in deterministic core/secondary/minor
-order and reports what it selected or omitted. Character knowledge lookup is
-character-specific and can reconstruct bounded evidence through a requested scene.
-Outline and continuity guidance now requires changed dates, counts, custody,
-resources and event order to be reconciled across current plans and actual records.
-The frozen novels, thesis originals and historical test evidence remain unchanged.
+This is an experimental implementation of the supplied *Beyond Fluency* design,
+not a demonstrated solution to novel-scale literary quality. See
+[implementation scope and verification](docs/implementation-status.md),
+[change history](CHANGELOG.md), and [managed workflow](skills/literary-workflow/SKILL.md).
 
-## Autonomous writing
+## Managed literary workflow
+
+In a separate novel directory, initialize or load the project, then preview:
+
+```text
+/PNW-literary migrate delegated
+/PNW-literary apply <digest returned by the preview>
+```
+
+Migration preserves manuscript wording and author guidance. It does not validate
+imported facts or authorize paid calls. Existing saved guidance can be upgraded
+separately with `/PNW-literary upgrade-guidance 0.2.2` and explicit application of
+the returned preview. Author conflicts remain visible instead of being overwritten.
+
+For a bounded single-scene session:
+
+```text
+/PNW-literary authorize 20 250000
+```
+
+These are example **call and reserved-token limits**, not a cost prediction. The
+job budget must fit the remaining allowance. Ask Pi to use the `literary-workflow`
+skill to create the actual plan, AVS and scene setup, prepare a version-bound job,
+run it and inspect its evidence. `configs/example-scene-setup.json` is only an
+illustration: replace its IDs and narrative/voice data before use.
+
+For delegated automatic continuation on a managed project:
+
+```text
+/PNW-auto start --calls 100 --tokens 1000000 --turns 30 <your brief>
+/PNW-auto pause
+/PNW-auto resume --calls 100 --tokens 1000000 --turns 30
+```
+
+Limits are explicitly authorized per session; restart never restores spending
+permission. Model tools cannot silently increase them. Worker and coordinator
+usage are reported separately. Creative delegation never authorizes publication.
+
+Managed completion requires current accepted scenes, summaries, reading order and
+complete chapter/arc/manuscript audits, not a `final` status label. A model audit is
+not a human read. Long scopes that exceed context are reported as incomplete.
+Export working files with `/PNW-compile working` or an immutable accepted snapshot
+with `/PNW-compile accepted`. These exports do not publish anything.
+
+The detailed [literary help](help/literary/help.md) covers recovery, restoration,
+source-bound edits, permissions and data paths. The remaining legacy workflow
+reference below applies to projects that have **not** enabled managed mode.
+
+## Legacy autonomous writing
 
 After opening Pi in a **separate folder for your novel**:
 
@@ -112,7 +156,7 @@ factual claims still need comparison with actual prose.
 
 ## Prerequisites
 
-- **Pi 0.85.1** — the tested baseline; uses the `@earendil-works` packages and current extension lifecycle
+- **Pi 0.85.1** - the pinned development baseline; uses the `@earendil-works` packages and current extension lifecycle
 - **Node.js 22.19+**
 - **Pandoc** (optional, for DOCX export)
   - Windows: `winget install JohnMacFarlane.Pandoc`
@@ -305,6 +349,8 @@ my-novel/
   notes/
     deleted-scenes/         # archived scenes (non-destructive delete)
     deleted-bible/          # archived bible entries
+  .pnw/                     # private managed snapshots, objects, jobs and migration backups
+                            # present only after explicit managed migration
   .pi/
     APPEND_SYSTEM.md        # writing guidance added to Pi's normal instructions
     AGENTS.md               # editable project notes
@@ -319,9 +365,9 @@ the novel layout.
 
 ---
 
-## How Context Injection Works
+## Legacy context injection
 
-Automatic context includes the voice profile, a bounded selection of bible
+Outside managed workers, automatic context includes the voice profile, a bounded selection of bible
 entries and fresh summaries. It is not guaranteed to include everything a scene
 needs. Drafting must explicitly read its scene card, relevant prior prose and
 continuity records. Autonomous progress is restored separately on each continuation.
@@ -340,6 +386,10 @@ and omitted bible entries and selected summaries.
 ---
 
 ## Summary System
+
+New summary writes require the hash of the source actually read and their relevant
+file dependencies. A stale prepared summary is rejected instead of stamped as fresh.
+Managed acceptance also stores an immutable evidence-derived summary.
 
 Summaries help maintain continuity without rereading every scene on every turn.
 Each drafted scene has a corresponding summary file
@@ -366,7 +416,8 @@ See `help/summarize/` for full documentation.
 
 In collaborative work, editing skills can save suggestions in
 `.pi/edit-suggestions.json`. Accepting a suggestion now actually replaces its
-unique matching passage; stale or ambiguous matches fail without consuming the
+unique matching passage against its stable scene ID and expected full-source hash.
+Old unversioned suggestions must be reproposed. Stale or ambiguous matches fail without consuming the
 suggestion. Prior prose is retained. Autonomous writing applies its own justified
 revisions instead of waiting for individual approvals.
 
@@ -414,6 +465,8 @@ pi-novel-writer is built from three types of components:
 - `novel-export.ts` — manuscript compilation, Pandoc DOCX, `/PNW-compile`
 - `novel-progress.ts` — word count tracking, sprints, `/PNW-progress`, `/PNW-sprint`
 - `novel-github.ts` — GitHub integration for novel repositories
+- `novel-literary.ts` - managed schema, design, preparation, execution, acceptance, audit and recovery commands
+- `llgf/` - typed internal services and atomic store
 - `novel-auto.ts` — persistent autonomous run, continuation, evidence and completion gates
 
 Editorial analysis tools return actual scene evidence for the AI to assess.
@@ -428,10 +481,16 @@ cannot remove future information already present elsewhere in the conversation.
 
 ## Verification
 
-This version was checked against Pi's real extension loader, tool behavior,
-saved-state gates, and continuation controls, plus a live author-session
-verification. Tests, generated novels and audit records are retained locally
-and deliberately excluded from this extension-only repository distribution.
+See [the implementation status](docs/implementation-status.md) for observed test
+results and outstanding release gates. Run `npm ci --ignore-scripts`,
+`npm run check`, and `npm run pack:check` in the source checkout. The test host
+validates actual extension registrations, but mocks provider responses. No live
+provider or human evaluation of this release candidate is implied.
+
+`npm run schemas` regenerates runtime-derived structural schemas; the suite fails
+if exports are stale. `npm run evaluate -- ...` prepares offline frozen trial and
+reader packets. See [the evaluation protocol](protocols/evaluation.md). It makes no
+model calls and does not fabricate reader outcomes or statistical evidence.
 
 ### Corrected editing and progress behavior
 
