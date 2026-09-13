@@ -259,7 +259,7 @@ export function scanScenes(rootPath: string, format: string): Map<string, SceneM
 }
 
 function loadProject(rootPath: string): NovelProject {
-  rootPath = path.resolve(rootPath);
+  rootPath = fs.realpathSync(rootPath);
   const configPath = path.join(rootPath, "project.json");
   const config: ProjectConfig = JSON.parse(readText(configPath));
   const scenes = scanScenes(rootPath, config.format);
