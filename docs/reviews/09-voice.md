@@ -1,0 +1,5 @@
+# Change 09: Conditional voice compilation
+
+Scope: a runtime-validated AVS with invariants, conditional profiles, transitions, variation budgets, motif policy, targeted negative constraints, anchors and uncertainty; explicit epochs and calibration evidence; a deterministic scene-conditioned compiler with a budget and omission receipt. Narrative observations are separate from declared identity.
+
+Verification: 42 tests plus syntax and strict typechecking pass. Tests cover conditional selection, hard-budget failure instead of silent omission, local/distal anchors, rights exclusions, anti-anchor risk gating, unapproved epochs, duplicate or inconsistent anchor evidence, and absent calibration. Review moved active epoch/transition identity into required budget coverage and added source-span consistency and duplicate-bank checks. Token accounting is explicitly approximate. This compiler does not claim voice recognizability, corpus-calibrated bands, or legal verification of user-declared rights.

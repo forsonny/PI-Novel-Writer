@@ -214,17 +214,20 @@ Run the outline-novel skill
 | `/PNW-compile`  | Compile every discovered scene to Markdown; attempt DOCX via Pandoc |
 | `/PNW-progress` | Word count progress dashboard with 7-day UTC snapshots   |
 | `/PNW-github` | Show local Git/GitHub status |
-| `/PNW-github-connect <url>` | Initialize, commit, and push to an HTTPS remote |
-| `/PNW-github-push [message]` | Stage all changes, commit, and push |
-| `/PNW-github-pull` | Pull the saved branch; conflicts remain manual |
-| `/PNW-github-clone <url> [dir]` | Clone and print the command needed to load it |
+| `/PNW-github-connect <url>` | Configure an HTTPS remote without committing or publishing |
+| `/PNW-github-push [message]` | Preview exact eligible files, confirm, commit, and push |
+| `/PNW-github-pull` | Fast-forward the saved branch only when the working tree is clean |
+| `/PNW-github-clone <url> [dir]` | Clone with the Git credential helper; inspect before loading |
 
 Compilation does not filter scene status, publish, create PDF/EPUB, apply custom
 formatting, or clean old exports. Scene and bible “delete” tools archive recoverable
 copies. Merge archives both inputs but removes the second scene from the active
-manuscript. GitHub connect can force-push after a rejected initial push; use an
-empty remote unless replacing its history is intentional. Tokens are stored in
-plain text locally and may remain in the Git remote configuration.
+manuscript. GitHub connect never publishes. Pushes never force-update history,
+never stage private `.pi/` or `.pnw/` files, and are bound to a reviewed file preview.
+Authentication uses your configured Git credential helper. Do not paste tokens
+into chat. Existing token-bearing configurations require explicit
+`novel_github_credentials_cleanup` preview and approval; this does not erase prior
+logs, revoke credentials, or rewrite history.
 
 ---
 
@@ -470,3 +473,10 @@ Improvements to skills, prompts, and extensions are welcome.
 ## License
 
 MIT
+
+## Development verification
+
+The development host is pinned to Pi 0.85.1. Use Node 22.19.0 or later, then
+`npm ci --ignore-scripts` and `npm run check`. Checks parse every TypeScript file,
+run strict typechecking, and exercise the real extension registrations against a
+non-model test host. A passing engineering suite is not a literary benchmark.

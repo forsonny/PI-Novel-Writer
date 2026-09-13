@@ -1,16 +1,6 @@
-# GitHub Integration — Resources
+# GitHub resources
 
-`.pi/github.json` stores `token`, clean `remote`, and `branch`. It is gitignored,
-not encrypted. The current implementation injects the token into `origin` before
-network operations and does not reliably restore the clean URL afterward. Treat
-`.git/config` as sensitive until you replace the remote with the clean HTTPS URL.
-
-The status tool reports repository root, branch, sanitized remote, last commit,
-and up to twenty changed-path status lines. Push stages all files. Connect may
-force-push after a rejected/non-fast-forward initial push. Pull delegates conflict
-handling to Git.
-
-Supported: HTTPS PAT authentication, one saved branch, clone/connect/status/push/
-pull. Not supported: SSH, credential-manager integration, encrypted token storage,
-selective commits, conflict resolution, branch management, publication, or remote
-history recovery.
+Use the `github-setup` skill for the credential-helper and preview workflow.
+The tools are `novel_github_preview`, `novel_github_connect`,
+`novel_github_push`, `novel_github_push_commit`, `novel_github_pull`, and
+`novel_github_credentials_cleanup`. The legacy token setter no longer stores tokens.

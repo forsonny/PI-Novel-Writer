@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { newId, proseHash } from '../extensions/llgf/version.ts';
+import { applyPromiseEvent, promiseStatus, applyMotifEvent, motifAvailability, validateAffordance, selectAffordances, type NarrativePromise, type PromiseEvent, type Motif, type MotifEvent, type Affordance } from '../extensions/llgf/registries.ts';
+import type { SceneCondition } from '../extensions/llgf/narrative.ts';
+const body = 'The bell was silent.', sceneId = newId();
+const evidence = [{ sceneId, textHash: proseHash(body), start: 0, end: body.length, quote: body, offsetUnit: 'utf16' as const }];
+const resolve = (id: string, hash: string) => id === sceneId && hash === proseHash(body) ? body : undefined;
+const when = { focalizerIds: [], sceneFunctions: [], epochIds: [], pressures: [], distances: [] };
+const condition: SceneCondition = { focalizerId: null, sceneFunction: 'aftermath', secondaryFunctions: [], pressure: 'quiet', distance: 'close', epochId: null, storyTime: { earliest: 1, latest: 1, label: '' }, narrativeIndex: 20 };
+const position = (i: number) => ({ sceneId, narrativeIndex: i, wordPosition: i * 100, ordinal: 0 });
+const promise = (): NarrativePromise => ({ schemaVersion: 1, id: newId(), type: 'mystery', statement: 'Who silenced the bell?', salience: 2, characters: [], themes: [], eligibleCallbacks: [], transformations: [], resolutionWindow: { earliestIndex: 1, latestIndex: 10 }, acceptableNonresolution: 'May remain open in this installment.', dependencies: [], history: [] });
+const pe = (action: PromiseEvent['action'], i: number): PromiseEvent => ({ id: newId(), action, position: position(i), rationale: 'Supported by this scene.', evidence, meaning: '' });
+const motif = (): Motif => ({ schemaVersion: 1, id: newId(), name: 'Bell', materialForms: ['bell'], thematicQuestions: ['Who may speak?'], initialMeaning: 'Authority', viewpointMeanings: [], transformations: [], forbiddenGlosses: [], when, dependencies: [], saturation: { windowWords: 1000, warningCount: 2, basis: 'design_heuristic', evidence: [] }, history: [] });
+const me = (action: MotifEvent['action'], i: number): MotifEvent => ({ ...pe('sustain', i), action });
+test('promise aging requests review, never a forced reminder; explicit nonresolution is retained', () => {
+  let p = applyPromiseEvent(promise(), pe('introduce', 0), resolve);
+  assert.equal(promiseStatus(p, 20).overdueReview, true); assert.equal(promiseStatus(p, 20).reminderRequired, false);
+  p = applyPromiseEvent(p, pe('intentional_nonresolution', 20), resolve);
+  assert.equal(promiseStatus(p, 20).status, 'intentional_nonresolution');
+  assert.equal(promiseStatus(p, 20).overdueReview, false);
+  assert.throws(() => applyPromiseEvent(p, pe('sustain', 21), resolve), /reopening/);
+});
+test('registry events are source-verified, immutable and idempotent', () => {
+  const p = promise(), event = pe('introduce', 0), updated = applyPromiseEvent(p, event, resolve);
+  assert.equal(p.history.length, 0); assert.equal(applyPromiseEvent(updated, event, resolve).history.length, 1);
+  assert.throws(() => applyPromiseEvent(updated, { ...event, rationale: 'changed' }, resolve), /ID reused/);
+  assert.throws(() => applyPromiseEvent(p, { ...event, evidence: [{ ...evidence[0], quote: 'Invented.' }] }, resolve), /source version/);
+  assert.throws(() => applyPromiseEvent(p, pe('resolve', 1), resolve), /precedes introduction/);
+});
+test('motif transformation, dormancy and saturation are not insertion quotas', () => {
+  let m = applyMotifEvent(motif(), me('introduce', 0), resolve);
+  m = applyMotifEvent(m, { ...me('transform', 1), meaning: 'Silenced authority' }, resolve);
+  const view = motifAvailability(m, { ...condition, narrativeIndex: 2 }, 200);
+  assert.equal(view.meaning, 'Silenced authority'); assert.equal(view.saturationWarning, true); assert.equal(view.insertionRequired, false);
+  m = applyMotifEvent(m, { ...me('dormant', 2), evidence: [] }, resolve);
+  assert.equal(motifAvailability(m, condition, 2000).eligible, false);
+  assert.throws(() => applyMotifEvent(m, me('recur', 3), resolve), /reactivation/);
+});
+test('affordances require available viewpoint, current state and explicit transmission permission', () => {
+  const state = { key: `state:${newId()}`, hash: proseHash('state') }, holderId = newId();
+  const a: Affordance = { schemaVersion: 1, id: newId(), description: 'A bellmaker notices load and cracks.', sourceState: [state], when, holderId, sourceDomains: ['metalwork'], perceptualOptions: ['stress'], positiveAlternatives: [], status: 'approved', rights: { status: 'author_owned', basis: 'Original design', permitted: ['drafting'], livingAuthor: null, permissionRecorded: true }, providerTransmissionAllowed: true, saturation: { windowWords: 1000, warningCount: null, basis: 'unconfigured', evidence: [] }, uses: [] };
+  validateAffordance(a, resolve);
+  const versions = { [state.key]: state.hash };
+  assert.equal(selectAffordances([a], condition, 2000, versions, [state.key]).selected.length, 0);
+  assert.equal(selectAffordances([a], { ...condition, focalizerId: holderId }, 2000, versions, [state.key]).selected.length, 1);
+  assert.equal(selectAffordances([{ ...a, providerTransmissionAllowed: false }], { ...condition, focalizerId: holderId }, 2000, versions, [state.key]).selected.length, 0);
+  assert.equal(selectAffordances([a], { ...condition, focalizerId: holderId }, 2000, {}, [state.key]).selected.length, 0);
+  assert.equal(selectAffordances([a], { ...condition, focalizerId: holderId }, 2000, versions, []).selected.length, 0);
+  assert.throws(() => validateAffordance({ ...a, saturation: { ...a.saturation, basis: 'human_calibrated' } }, resolve), /calibration evidence/);
+});

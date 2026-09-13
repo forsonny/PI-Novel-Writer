@@ -3,6 +3,8 @@
 // This extension MUST be loaded first (listed first in package.json pi.extensions)
 
 import path from "node:path";
+import { newId, proseHash, expectVersion } from "./llgf/version.ts";
+import { projectPath, positiveInteger, sceneMetadata } from "./utils/safety.ts";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -16,7 +18,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ProjectConfig {
+export interface ProjectConfig {
   title: string;
   author: string;
   genre: string;
@@ -48,7 +50,8 @@ interface ProjectConfig {
   };
 }
 
-interface SceneMetadata {
+export interface SceneMetadata {
+  id?: string;
   chapter: number;
   scene: number;
   order?: number;
@@ -64,7 +67,7 @@ interface SceneMetadata {
   filePath: string;
 }
 
-interface NovelProject {
+export interface NovelProject {
   config: ProjectConfig;
   rootPath: string;
   scenes: Map<string, SceneMetadata>;
@@ -107,7 +110,7 @@ export function parseFrontmatter(content: string): { meta: Record<string, any>; 
   const rawYaml = match[1];
   const body = content.slice(match[0].length);
   // Simple YAML parser for our known fields
-  const meta: Record<string, any> = {};
+  const meta: Record<string, any> = Object.create(null);
   let currentKey = "";
   let inArray = false;
   for (const line of rawYaml.split("\n")) {
@@ -195,51 +198,61 @@ function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function scanScenes(rootPath: string, format: string): Map<string, SceneMetadata> {
+export function scanScenes(rootPath: string, format: string): Map<string, SceneMetadata> {
   const scenes = new Map<string, SceneMetadata>();
-  const msDir = path.join(rootPath, "manuscript");
+  const ids = new Set<string>();
+  function insert(key: string, entry: SceneMetadata) {
+    if (scenes.has(key)) throw new Error(`Duplicate scene address ${key}`);
+    if (entry.id && ids.has(entry.id)) throw new Error(`Duplicate stable scene ID ${entry.id}`);
+    if (entry.id) ids.add(entry.id);
+    scenes.set(key, entry);
+  }
+  const msDir = projectPath(rootPath, "manuscript");
   if (!fs.existsSync(msDir)) return scenes;
 
   if (format === "flash-fiction") {
-    const storyPath = path.join(msDir, "story.md");
+    const storyPath = projectPath(rootPath, path.join(msDir, "story.md"));
     if (fs.existsSync(storyPath)) {
       const content = readText(storyPath);
       const { meta } = parseFrontmatter(content);
-      scenes.set("01-01", { chapter: 1, scene: 1, filePath: storyPath, ...meta } as SceneMetadata);
+      insert("01-01", sceneMetadata(meta, { chapter: 1, scene: 1, filePath: storyPath }));
     }
     return scenes;
   }
 
   if (format === "short-story") {
-    const scenesDir = path.join(msDir, "scenes");
+    const scenesDir = projectPath(rootPath, path.join(msDir, "scenes"));
     if (!fs.existsSync(scenesDir)) return scenes;
     for (const file of fs.readdirSync(scenesDir).sort()) {
       if (!file.endsWith(".md")) continue;
-      const filePath = path.join(scenesDir, file);
+      const filePath = projectPath(rootPath, path.join(scenesDir, file));
       const content = readText(filePath);
       const { meta } = parseFrontmatter(content);
-      const key = sceneKey(1, meta.scene || 1);
-      scenes.set(key, { chapter: 1, filePath, ...meta } as SceneMetadata);
+      const scNum = positiveInteger(meta.scene ?? (parseInt(file.replace(/\D/g, ""), 10) || 1), "Scene");
+      const key = sceneKey(1, scNum);
+      if (scenes.has(key)) throw new Error(`Duplicate scene address ${key}`);
+      insert(key, sceneMetadata(meta, { chapter: 1, scene: scNum, filePath }));
     }
     return scenes;
   }
 
   // novel / novella
-  const chapDir = path.join(msDir, "chapters");
+  const chapDir = projectPath(rootPath, path.join(msDir, "chapters"));
   if (!fs.existsSync(chapDir)) return scenes;
   for (const chDir of fs.readdirSync(chapDir).sort()) {
-    const chPath = path.join(chapDir, chDir);
+    const chPath = projectPath(rootPath, path.join(chapDir, chDir));
     if (!fs.statSync(chPath).isDirectory()) continue;
     const chNum = parseInt(chDir.split("-")[0], 10);
     if (isNaN(chNum)) continue;
     for (const file of fs.readdirSync(chPath).sort()) {
       if (!file.endsWith(".md")) continue;
-      const filePath = path.join(chPath, file);
+      const filePath = projectPath(rootPath, path.join(chPath, file));
       const content = readText(filePath);
       const { meta } = parseFrontmatter(content);
-      const scNum = meta.scene || parseInt(file.replace(/\D/g, ""), 10) || 1;
+      const scNum = positiveInteger(meta.scene ?? (parseInt(file.replace(/\D/g, ""), 10) || 1), "Scene");
       const key = sceneKey(chNum, scNum);
-      scenes.set(key, { chapter: chNum, scene: scNum, filePath, ...meta } as SceneMetadata);
+      if (scenes.has(key)) throw new Error(`Duplicate scene address ${key}`);
+      insert(key, sceneMetadata(meta, { chapter: chNum, scene: scNum, filePath }));
     }
   }
   return scenes;
@@ -267,9 +280,10 @@ export function refreshProject(): NovelProject | null {
 export function saveScene(filePath: string, content: string): void {
   const p = getProject();
   if (!p) throw new Error("No project loaded.");
+  filePath = projectPath(p.rootPath, filePath);
   const original = readText(filePath);
   if (original === content) return;
-  const backupDir = path.join(p.rootPath, "notes", "revisions");
+  const backupDir = projectPath(p.rootPath, "notes/revisions");
   ensureDir(backupDir);
   const digest = createHash("sha256").update(original).digest("hex");
   const backup = path.join(backupDir, `${digest}.md`);
@@ -277,12 +291,13 @@ export function saveScene(filePath: string, content: string): void {
   writeText(filePath, content);
 }
 
-export async function replacePassage(chapter: number, scene: number, original: string, replacement: string) {
+export async function replacePassage(chapter: number, scene: number, original: string, replacement: string, expectedSourceHash?: string) {
   const entry = refreshProject()?.scenes.get(sceneKey(chapter, scene));
   if (!entry) throw new Error(`Scene ${chapter}.${scene} not found.`);
-  return withFileMutationQueue(entry.filePath, () => {
+  return withFileMutationQueue(entry.filePath, async () => {
     const raw = readText(entry.filePath);
     const { body } = parseFrontmatter(raw);
+    expectVersion(body, expectedSourceHash);
     if (!original || body.split(original).length !== 2) {
       throw new Error("The original passage must match exactly once in the scene prose. Read it again before editing.");
     }
@@ -668,7 +683,7 @@ export default function novelCoreExtension(pi: any) {
       ensureDir(chDir);
 
       const meta: Record<string, any> = {
-        chapter, scene: sceneNum,
+        id: newId(), chapter, scene: sceneNum,
         title: title || `Scene ${sceneNum}`,
         pov: pov || "", location: location || "", timeline: timeline || "",
         status: "outline",
@@ -716,6 +731,7 @@ export default function novelCoreExtension(pi: any) {
 
       const result = {
         ...meta,
+        sourceHash: proseHash(body),
         wordCount: words,
         totalLines,
         content: lines.join("\n"),
@@ -973,6 +989,7 @@ export default function novelCoreExtension(pi: any) {
       chapter: Type.Number({ description: "Chapter number" }),
       scene: Type.Number({ description: "Scene number" }),
       content: Type.String({ description: "New prose content for the scene body (frontmatter is preserved)" }),
+      expectedSourceHash: Type.Optional(Type.String({ pattern: "^[0-9a-f]{64}$" })),
     }),
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
@@ -980,9 +997,10 @@ export default function novelCoreExtension(pi: any) {
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene ${params.chapter}.${params.scene} not found.` }] };
 
-      await withFileMutationQueue(scene.filePath, () => {
+      await withFileMutationQueue(scene.filePath, async () => {
         const existing = readText(scene.filePath);
         const { body } = parseFrontmatter(existing);
+        expectVersion(body, params.expectedSourceHash);
         saveScene(scene.filePath, existing.slice(0, existing.length - body.length) + params.content);
       });
 
@@ -1006,7 +1024,8 @@ export default function novelCoreExtension(pi: any) {
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
 
-      return withFileMutationQueue(scene.filePath, () => {
+      const activeProject = project;
+      return withFileMutationQueue(scene.filePath, async () => {
       const content = readText(scene.filePath);
       const { meta, body } = parseFrontmatter(content);
       const lines = body.split("\n");
@@ -1020,15 +1039,15 @@ export default function novelCoreExtension(pi: any) {
       // IDs stay stable, so summaries, plans and knowledge references to OTHER
       // scenes need no renumbering. Only reading order changes.
       let maxScene = 0;
-      for (const [_k, s] of project.scenes) {
+      for (const [_k, s] of activeProject.scenes) {
         if (s.chapter === params.chapter && s.scene > maxScene) maxScene = s.scene;
       }
       const newNum = maxScene + 1;
-      const siblings = orderedScenes(project!).filter(s => s.chapter === params.chapter);
+      const siblings = orderedScenes(activeProject).filter(s => s.chapter === params.chapter);
       const next = siblings[siblings.findIndex(s => s.scene === params.scene) + 1];
       const position = meta.order ?? params.scene;
       const order = next ? (position + (next.order ?? next.scene)) / 2 : position + 1;
-      const newMeta = { ...meta, scene: newNum, order, title: `${meta.title || "Scene"} (continued)`, summary: "" };
+      const newMeta = { ...meta, id: newId(), derived_from: meta.id ? [meta.id] : [], scene: newNum, order, title: `${meta.title || "Scene"} (continued)`, summary: "" };
       const chDir = path.dirname(scene.filePath);
       const newPath = path.join(chDir, `scene-${String(newNum).padStart(2, "0")}.md`);
       // Save the continuation before cutting the original; a failed write must
@@ -1038,7 +1057,7 @@ export default function novelCoreExtension(pi: any) {
       saveScene(scene.filePath, buildFrontmatter(meta) + firstHalf);
 
       const newKey = sceneKey(params.chapter, newNum);
-      project!.scenes.set(newKey, { ...scene, scene: newNum, order, title: newMeta.title, filePath: newPath } as SceneMetadata);
+      activeProject.scenes.set(newKey, { ...scene, id: newMeta.id, scene: newNum, order, title: newMeta.title, filePath: newPath } as SceneMetadata);
 
       return { content: [{ type: "text", text: `Split at line ${params.splitAtLine}. New scene: Ch${params.chapter} Sc${newNum}, immediately after Sc${params.scene} in reading order. Other scene IDs are unchanged. Refresh both summaries and their affected scene cards/continuity.` }] };
       });
@@ -1063,6 +1082,9 @@ export default function novelCoreExtension(pi: any) {
       const s2 = project.scenes.get(key2);
       if (!s1 || !s2) return { content: [{ type: "text", text: "One or both scenes not found." }] };
 
+      if (key1 === key2) throw new Error("Cannot merge a scene with itself.");
+      const siblings = orderedScenes(project).filter(s => s.chapter === params.chapter);
+      if (siblings.findIndex(s => s.scene === params.scene2) !== siblings.findIndex(s => s.scene === params.scene1) + 1) throw new Error("Merge requires adjacent scenes in reading order.");
       const content1 = readText(s1.filePath);
       const content2 = readText(s2.filePath);
       const { meta: meta1, body: body1 } = parseFrontmatter(content1);
@@ -1071,6 +1093,7 @@ export default function novelCoreExtension(pi: any) {
       // Union characters_present
       const chars = new Set([...(meta1.characters_present || []), ...(meta2.characters_present || [])]);
       meta1.characters_present = [...chars];
+      meta1.merged_from = [...(meta1.merged_from || []), ...(meta2.id ? [meta2.id] : [])];
 
       // Archive originals
       const archiveDir = path.join(project.rootPath, "notes", "deleted-scenes");
@@ -1103,21 +1126,22 @@ export default function novelCoreExtension(pi: any) {
     }),
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const activeProject = project;
       const previewMode = params.preview !== false;
       const results: string[] = [];
       let totalReplacements = 0;
 
       const scanDirs = ["manuscript", "bible", "outline", "summaries"];
       for (const dir of scanDirs) {
-        const dirPath = path.join(project.rootPath, dir);
+        const dirPath = path.join(activeProject.rootPath, dir);
         if (!fs.existsSync(dirPath)) continue;
         const files = getAllMdFiles(dirPath);
         for (const filePath of files) {
-          await withFileMutationQueue(filePath, () => {
+          await withFileMutationQueue(filePath, async () => {
           const content = readText(filePath);
           const count = (content.match(new RegExp(escapeRegex(params.find), "g")) || []).length;
           if (count > 0) {
-            const rel = path.relative(project.rootPath, filePath);
+            const rel = path.relative(activeProject.rootPath, filePath);
             results.push(`${rel}: ${count} occurrence(s)`);
             totalReplacements += count;
             if (!previewMode) {
@@ -1148,6 +1172,7 @@ export default function novelCoreExtension(pi: any) {
     }),
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      const activeProject = project;
       const previewMode = params.preview !== false;
       const pattern = new RegExp(`\\b${escapeRegex(params.oldName)}\\b`, "g");
       const results: string[] = [];
@@ -1155,15 +1180,15 @@ export default function novelCoreExtension(pi: any) {
 
       const scanDirs = ["manuscript", "bible", "outline", "summaries", "continuity", "timeline"];
       for (const dir of scanDirs) {
-        const dirPath = path.join(project.rootPath, dir);
+        const dirPath = path.join(activeProject.rootPath, dir);
         if (!fs.existsSync(dirPath)) continue;
         const files = getAllFiles(dirPath);
         for (const filePath of files) {
-          await withFileMutationQueue(filePath, () => {
+          await withFileMutationQueue(filePath, async () => {
           const content = readText(filePath);
           const matches = content.match(pattern);
           if (matches && matches.length > 0) {
-            const rel = path.relative(project.rootPath, filePath);
+            const rel = path.relative(activeProject.rootPath, filePath);
             results.push(`${rel}: ${matches.length} occurrence(s)`);
             total += matches.length;
             if (!previewMode) {

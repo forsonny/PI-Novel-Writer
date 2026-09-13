@@ -1,0 +1,5 @@
+# Change 10: Scene-specific dual-memory composition
+
+Scope: separate narrative and stylistic channels, project/role/holder/rights/version filters, required dependency coverage, optional scene relevance, duplicate and summary-register controls, complete rendered input accounting with output/host reserves, and an inclusion/omission receipt with source versions.
+
+Verification: 50 tests and strict checking pass. Tests exercise future information, wrong holders, rejected drafts, stale summaries, private sources, distant hard requirements, insufficient budgets, duplicated wording, mismatched voice conditions and corrupted content. Review separated provenance freshness from required context content so a verified fact does not force its entire source chapter into every call. Control dependencies now include the scene contract/AVS, and high priority alone no longer admits unrelated lore. The symbolic weights and token estimates are labeled heuristics; full-history removal belongs to isolated workers, not this composer.

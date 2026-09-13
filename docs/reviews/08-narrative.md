@@ -1,0 +1,5 @@
+# Change 08: Epistemic narrative records and scene contracts
+
+Scope: strict Scene Intent Contracts, four information modes, protected properties, explicit obligations and prerequisite graphs; propositions distinguish world, character, narrator and reader layers, belief/status, source modality, acquisition time, disclosure position and review. Character queries preserve uncertainty and cutoffs; conflict detection reports candidates for interpretation, not automatic corrections.
+
+Verification: 36 tests and strict checking pass. Fixtures preserve quiet/discovery scenes, reject unsupported ambiguity definitions, prevent attributed/figurative language from direct canonical promotion, verify source quotes, retain holder/time boundaries, and reject broken prerequisite graphs. Review caught superseded beliefs remaining active: later verified acquisitions now supersede earlier beliefs only at the appropriate cutoff. Runtime enum schemas and static types were tested together. Literary truth and review authenticity still require the acceptance boundary, not just schema validity.

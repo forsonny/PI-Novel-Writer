@@ -1,18 +1,8 @@
-# GitHub Integration — Walkthrough
+# GitHub walkthrough
 
-1. Create a private **empty** GitHub repository.
-2. Create a fine-grained token limited to that repository with Contents read/write,
-   or a classic token with appropriate repository access.
-3. Ask the AI to save it with `novel_github_token_set`. The token is stored locally
-   in plain text, not encrypted.
-4. Run `/PNW-github-connect <https-url>`. Do not use this on a remote with history
-   you need to preserve: a rejected initial push can trigger a force push.
-5. Run `/PNW-github` and verify branch, remote and changed-file count.
-6. For later work, pull before editing and push afterward. Pull conflicts require
-   manual resolution. Push includes every changed/untracked file and may rewrite the
-   generated project README.
-7. After a network operation, inspect or reset `origin` to the clean HTTPS URL if
-   you do not want the token retained in local Git configuration.
-
-`/PNW-github-clone` only clones and prints how to load the result. Save credentials
-again on the new machine. GitHub actions are not authorized during autonomous runs.
+Configure Git authentication outside chat. Open your novel and connect its own
+repository with `/PNW-github-connect <url>`. Run `/PNW-github` to inspect changes,
+then `/PNW-github-push [message]` and review the exact filenames before confirming.
+Private state and logs are not ordinary publication files. Inspect sources and
+rights before sharing a manuscript. Pull only after saving or resolving local
+changes. Network failures preserve local commits for an explicit retry.

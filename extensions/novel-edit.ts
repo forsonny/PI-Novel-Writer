@@ -233,7 +233,7 @@ export default function novelEditExtension(pi: any) {
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
       
-      await withFileMutationQueue(scene.filePath, () => {
+      await withFileMutationQueue(scene.filePath, async () => {
       const content = readText(scene.filePath);
       // We need to carefully split frontmatter from body
       const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
