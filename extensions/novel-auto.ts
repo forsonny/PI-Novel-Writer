@@ -428,7 +428,8 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
         const target = "path" in event.input ? event.input.path : undefined;
         if (typeof target !== "string") return { block: true, reason: "A scoped data-file path is required." };
         try {
-          const file = projectPath(armedRoot, path.resolve(ctx.cwd, target)), rel = path.relative(fs.realpathSync(armedRoot), file).replaceAll("\\", "/");
+          const selectedRoot = fs.realpathSync(ctx.cwd) === armedRoot ? ctx.cwd : armedRoot;
+          const file = projectPath(selectedRoot, path.resolve(ctx.cwd, target)), rel = path.relative(fs.realpathSync(armedRoot), file).replaceAll("\\", "/");
           if (/^(manuscript|summaries)\//.test(rel) || rel.split("/").some(p => p.startsWith("."))) return { block: true, reason: "Direct prose, summary, and managed-state writes bypass version checks. Use the managed tools." };
         } catch { return { block: true, reason: "Unattended writes must stay inside the loaded novel." }; }
       }

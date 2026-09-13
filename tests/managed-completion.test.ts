@@ -71,6 +71,10 @@ test('managed auto author command grants bounded workers; loading, missing budge
       assert.ok(pi.hooks.get('tool_call')!.map(h => h(event, ctx)).some(x => x?.block));
     }
     assert.equal(pi.hooks.get('tool_call')!.map(h => h({ toolName: 'write', input: { path: path.join(f.root, 'notes/concept.md') } }, ctx)).some(x => x?.block), false);
+    const alias = path.join(f.root, 'cwd-alias'); fs.symlinkSync(f.root, alias, 'dir');
+    const aliasContext = { ...ctx, cwd: alias };
+    assert.equal(pi.hooks.get('tool_call')!.map(h => h({ toolName: 'write', input: { path: path.join(alias, 'notes/concept.md') } }, aliasContext)).some(x => x?.block), false);
+    assert.ok(pi.hooks.get('tool_call')!.map(h => h({ toolName: 'write', input: { path: path.join(alias, 'manuscript/blocked.md') } }, aliasContext)).some(x => x?.block));
     await pi.commands.get('PNW-auto')!.handler('pause', ctx); assert.equal((await status()).authority, null);
     assert.equal(readRun(f.root)!.status, 'paused');
   } finally { f.dispose(); }
