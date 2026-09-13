@@ -15,6 +15,7 @@
       "./extensions/novel-export.ts",
       "./extensions/novel-progress.ts",
       "./extensions/novel-github.ts",
+      "./extensions/novel-literary.ts",
       "./extensions/novel-auto.ts"
     ],
     "skills": [
