@@ -65,7 +65,9 @@ test('managed auto author command grants bounded workers; loading, missing budge
     assert.equal(readRun(f.root)!.continuations, 1);
     const blockers = pi.hooks.get('tool_call')!.map(h => h({ toolName: 'novel_scene_write' }, ctx));
     assert.ok(blockers.some(x => x?.block));
-    for (const event of [{ toolName: 'write', input: { path: f.file } }, { toolName: 'write', input: { path: path.join(f.root, '.pnw/project.json') } }, { toolName: 'bash', input: {} }]) {
+    for (const event of [{ toolName: 'write', input: { path: f.file } }, { toolName: 'write', input: { path: path.join(f.root, '.pnw/project.json') } }, { toolName: 'bash', input: {} },
+      { toolName: 'export_docx', input: { inputPath: f.file, outputPath: f.file } },
+      { toolName: 'export_docx', input: { inputPath: f.file, outputPath: path.join(f.root, '..', 'outside.docx') } }]) {
       assert.ok(pi.hooks.get('tool_call')!.map(h => h(event, ctx)).some(x => x?.block));
     }
     assert.equal(pi.hooks.get('tool_call')!.map(h => h({ toolName: 'write', input: { path: path.join(f.root, 'notes/concept.md') } }, ctx)).some(x => x?.block), false);

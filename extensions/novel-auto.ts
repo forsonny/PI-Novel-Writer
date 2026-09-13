@@ -422,6 +422,7 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
   pi.on("tool_call", (event, ctx) => {
     if (!armedRoot) return;
     if (managedProject(armedRoot)?.enabled) {
+      if (event.toolName === "export_docx") return { block: true, reason: "Managed unattended writing does not authorize arbitrary export destinations. Use compile_manuscript for a scoped export, or pause for author-directed DOCX conversion." };
       if (["bash", "powershell", "exec"].includes(event.toolName)) return { block: true, reason: "Managed unattended writing does not authorize shell execution. Use bounded novel tools; pause for author-directed maintenance." };
       if (["write", "edit"].includes(event.toolName)) {
         const target = "path" in event.input ? event.input.path : undefined;
