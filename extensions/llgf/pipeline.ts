@@ -1,4 +1,6 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { orderedScenes, readProjectSnapshot } from '../novel-core.ts';
 import { Type, type Static, type TSchema } from 'typebox';
 import { Strict, Id, Hash, Nonempty, Short, Span, Sources, strings, checked, type SourceRef } from './schema.ts';
 import { SceneContractSchema, PropositionSchema, validateContract, validateProposition, checkEvidence, apparentConflicts, characterEvidence, validateStateLinks, type Proposition, type SceneContract, type TextResolver } from './narrative.ts';
@@ -32,7 +34,7 @@ export const SceneSetupSchema = Strict({ schemaVersion: Type.Literal(1), contrac
 });
 export type SceneSetup = Static<typeof SceneSetupSchema>;
 const PreparationSchema = Strict({ schemaVersion: Type.Literal(1), id: Id, projectId: Id, address: SceneAddressSchema, setup: SceneSetupSchema,
-  originalRaw: Type.String({ maxLength: 500000 }), originalHash: Hash, expectedHead: Hash, settingsHash: Hash });
+  originalRaw: Type.String({ maxLength: 500000 }), originalHash: Hash, expectedHead: Hash, settingsHash: Hash, readingOrderHash: Hash });
 export type Preparation = Static<typeof PreparationSchema>;
 const StateSchema = Strict({ schemaVersion: Type.Literal(1), jobId: Id, preparationHash: Hash, body: Type.String({ maxLength: 500000 }),
   activeContract: SceneContractSchema, stage: Type.Enum(['sketch', 'draft', 'review', 'ready', 'blocked', 'accepted'] as const), units: Type.Integer({ minimum: 0 }),
@@ -49,6 +51,12 @@ const BlindComparisonSchema = Strict({ ...Type.Omit(ComparisonSchema, ['sourceHa
   preferred: Type.Enum(['A', 'B', 'tie'] as const) });
 interface FinalReview { proseRead: Static<typeof ProseReadSchema>; diagnostics: DiagnosticReport; validation: SceneValidation; propositions: Proposition[]; registry?: RegistryDelta; gate: GateResult }
 export function proseBody(raw: string): string { return raw.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ''); }
+function readingOrderHash(root: string): string {
+  return objectHash(orderedScenes(readProjectSnapshot(root)).map(s => ({
+    id: s.id ?? null, path: path.relative(root, s.filePath).replaceAll('\\', '/'),
+    chapter: s.chapter, scene: s.scene, order: s.order ?? s.scene,
+  })));
+}
 function ensureScene(root: string, a: SceneAddress): string {
   checked(SceneAddressSchema, a); const file = projectPath(root, a.path);
   if (!a.path.startsWith('manuscript/') || !a.path.endsWith('.md')) throw new Error('Expected a manuscript scene path');
@@ -137,7 +145,7 @@ export function prepareScene(root: string, address: SceneAddress, rawSetup: unkn
   const resolve = resolver(store, at, address.id, [proseBody(originalRaw)]);
   checkEvidence(setup.contract.protected.flatMap(p => p.spans), resolve);
   for (const a of setup.anchors) { if (a.sourceSpan) checkEvidence([a.sourceSpan], resolve); if (store.stale(a.sourceRecords, at).length) throw new Error('Anchor evidence is stale'); }
-  const p: Preparation = { schemaVersion: 1, id: newId(), projectId: store.projectId, address, setup, originalRaw, originalHash, expectedHead: at.hash, settingsHash: objectHash(settings) };
+  const p: Preparation = { schemaVersion: 1, id: newId(), projectId: store.projectId, address, setup, originalRaw, originalHash, expectedHead: at.hash, settingsHash: objectHash(settings), readingOrderHash: readingOrderHash(root) };
   const ref = store.put('preparation', p.id, checked(PreparationSchema, p));
   new JobStore(root, store.projectId).create(address.id, ref.hash, setup.budget, p.id);
   savePipeline(root, { schemaVersion: 1, jobId: p.id, preparationHash: ref.hash, body: proseBody(originalRaw), activeContract: structuredClone(setup.contract), stage: setup.mode === 'review_existing' ? 'review' : 'sketch', units: 0, sketch: null, records: [], revisionHistory: [], final: null, reason: null });
@@ -162,6 +170,7 @@ async function runSceneUnlocked(root: string, id: string, host: WorkerHost, perm
   const fresh = () => {
     signal?.throwIfAborted();
     if (!permit.active() || objectHash(managedProject(root)) !== p.settingsHash) throw new Error('Scene authority or project settings changed');
+    if (readingOrderHash(root) !== p.readingOrderHash) throw new Error('Scene reading order changed; prepare a new scene job');
     if (store.head().hash !== p.expectedHead || ensureScene(root, p.address) !== p.originalRaw) throw new Error('Source or accepted dependencies changed; prepare a new scene job');
   };
   fresh();
@@ -311,6 +320,7 @@ export function acceptScene(root: string, id: string, permit: WorkerPermit, acto
   }
   if (s.stage !== 'ready' || !s.final) throw new Error('Scene is not ready for acceptance');
   const at = store.head();
+  if (readingOrderHash(root) !== p.readingOrderHash) throw new Error('Scene reading order changed; prepare a new scene job');
   if (at.hash !== p.expectedHead || ensureScene(root, p.address) !== p.originalRaw || objectHash(settings) !== p.settingsHash) throw new Error('Source, accepted state or governance changed');
   const final = s.final as FinalReview & { contract: SceneContract }, contract = validateContract(final.contract);
   const resolve = resolver(store, at, p.address.id, [s.body, proseBody(p.originalRaw)]);

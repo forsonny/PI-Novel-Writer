@@ -73,3 +73,16 @@ test('explicit migration preview preserves prose and user metadata', async () =>
     await f.command('apply ' + preview.digest); assert.equal(fs.readFileSync(f.file, 'utf8'), before);
   } finally { f.dispose(); }
 });
+test('acceptance rejects reading-order changes after review through either authority path', async () => {
+  for (const human of [false, true]) {
+    const f = adapterFixture(); try {
+      const id = await f.prepare(); await f.command('authorize 12 300000');
+      await f.pi.call('novel_literary_run', { jobId: id }, f.ctx);
+      const head = f.store.head().hash, before = fs.readFileSync(f.file, 'utf8');
+      fs.writeFileSync(path.join(path.dirname(f.file), 'scene-02.md'), `---\nid: "${newId()}"\nscene: 2\norder: 0.5\n---\nAn earlier scene.`);
+      await assert.rejects(human ? f.command(`accept ${id}`) : f.pi.call('novel_literary_accept', { jobId: id }, f.ctx), /reading order/i);
+      assert.equal(f.store.head().hash, head);
+      assert.equal(fs.readFileSync(f.file, 'utf8'), before);
+    } finally { f.dispose(); }
+  }
+});
