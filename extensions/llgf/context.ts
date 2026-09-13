@@ -61,7 +61,7 @@ function exclusion(item: MemoryItem, r: ContextRequest): string | null {
 export function composeContext(request: ContextRequest, values: MemoryItem[]): ContextPacket {
   const r = request; checked(Id, r.projectId); checked(RoleSchema, r.role); validateContract(r.contract);
   checked(Type.Array(Id, { maxItems: 100 }), r.participantIds); checked(Sources, r.required);
-  checked(Type.Record(Key, Hash), r.currentVersions); checked(Text, r.nextMove); checked(Sources, r.controlSources);
+  checked(Type.Record(Key, Hash), r.currentVersions); checked(Type.String({ maxLength: 200000 }), r.nextMove); checked(Sources, r.controlSources);
   if (r.controlSources.some(s => r.currentVersions[s.key] !== s.hash)) throw new Error('A scene contract or voice control source is stale');
   checked(Type.String({ maxLength: 500000 }), r.localProse);
   if (objectHash(r.voice.condition) !== objectHash(r.contract.condition)) throw new Error('Voice Packet belongs to another scene condition');
