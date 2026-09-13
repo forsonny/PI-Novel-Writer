@@ -1,0 +1,473 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "sceneId",
+    "status",
+    "condition",
+    "purpose",
+    "dramaticQuestion",
+    "entryState",
+    "obligations",
+    "prohibitions",
+    "information",
+    "knowledgeDelta",
+    "pressureCurve",
+    "distanceTrajectory",
+    "subtext",
+    "sensoryAffordances",
+    "promiseActions",
+    "exitStateRange",
+    "protected",
+    "riskForecast",
+    "openDiscoveries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "sceneId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "status": {
+      "enum": [
+        "provisional",
+        "approved"
+      ]
+    },
+    "condition": {
+      "type": "object",
+      "required": [
+        "focalizerId",
+        "sceneFunction",
+        "secondaryFunctions",
+        "pressure",
+        "distance",
+        "epochId",
+        "storyTime",
+        "narrativeIndex"
+      ],
+      "properties": {
+        "focalizerId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sceneFunction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "secondaryFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        },
+        "pressure": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "distance": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "epochId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "storyTime": {
+          "type": "object",
+          "required": [
+            "earliest",
+            "latest",
+            "label"
+          ],
+          "properties": {
+            "earliest": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "latest": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 20000
+            }
+          },
+          "additionalProperties": false
+        },
+        "narrativeIndex": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "dramaticQuestion": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "entryState": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "statement",
+          "hardness",
+          "preconditions",
+          "dependsOn",
+          "acceptableOutcomes",
+          "deferralAllowed",
+          "completionEvidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "hardness": {
+            "enum": [
+              "hard",
+              "soft",
+              "open"
+            ]
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "hash"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 2000
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "maxItems": 100
+          },
+          "acceptableOutcomes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20000
+            },
+            "maxItems": 256
+          },
+          "deferralAllowed": {
+            "type": "boolean"
+          },
+          "completionEvidence": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "prohibitions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "information": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "statement",
+          "mode",
+          "holderId",
+          "evidenceRequired"
+        ],
+        "properties": {
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "mode": {
+            "enum": [
+              "explicit",
+              "inferable",
+              "withheld",
+              "ambiguous"
+            ]
+          },
+          "holderId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceRequired": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "knowledgeDelta": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "pressureCurve": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "distanceTrajectory": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "subtext": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "sensoryAffordances": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "promiseActions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "exitStateRange": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 20000
+      },
+      "minItems": 1,
+      "maxItems": 30
+    },
+    "protected": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "requirement",
+          "spans",
+          "readings",
+          "method"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "kind": {
+            "enum": [
+              "exact_text",
+              "fact",
+              "implication",
+              "ambiguity",
+              "silence",
+              "voice_feature"
+            ]
+          },
+          "requirement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "spans": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "sceneId",
+                "textHash",
+                "start",
+                "end",
+                "quote",
+                "offsetUnit"
+              ],
+              "properties": {
+                "sceneId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "textHash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                },
+                "offsetUnit": {
+                  "type": "string",
+                  "const": "utf16"
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 100
+          },
+          "readings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20000
+            },
+            "maxItems": 256
+          },
+          "method": {
+            "enum": [
+              "direct",
+              "model_assisted",
+              "human"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "riskForecast": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "openDiscoveries": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,309 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "manuscriptId",
+    "premiseId",
+    "voiceId",
+    "conditionId",
+    "tier",
+    "seed",
+    "provider",
+    "model",
+    "accessDate",
+    "phase",
+    "status",
+    "failureReason",
+    "body",
+    "textHash",
+    "rights",
+    "readerDistributionAllowed",
+    "sourceNote",
+    "manuscriptWordOffset",
+    "resources"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+    },
+    "manuscriptId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+    },
+    "premiseId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+    },
+    "voiceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+    },
+    "conditionId": {
+      "enum": [
+        "extension_022",
+        "B0",
+        "B1",
+        "B2",
+        "B3",
+        "B4",
+        "B5",
+        "B6",
+        "P"
+      ]
+    },
+    "tier": {
+      "enum": [
+        1000,
+        5000,
+        20000,
+        50000,
+        100000
+      ]
+    },
+    "seed": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "provider": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "accessDate": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "appliedAblations": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6",
+          "A7",
+          "A8",
+          "A9",
+          "A10",
+          "A11",
+          "A12",
+          "A13",
+          "A14",
+          "A15"
+        ]
+      },
+      "maxItems": 15
+    },
+    "negativeControl": {
+      "enum": [
+        "none",
+        "sentence_length_noise",
+        "synonym_substitution",
+        "roughness_noise"
+      ]
+    },
+    "promptHashes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      },
+      "maxItems": 10000
+    },
+    "configurationHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "phase": {
+      "enum": [
+        "raw",
+        "accepted_scene",
+        "chapter",
+        "arc",
+        "final"
+      ]
+    },
+    "status": {
+      "enum": [
+        "complete",
+        "failed",
+        "truncated",
+        "rejected"
+      ]
+    },
+    "failureReason": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 1000000
+    },
+    "textHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rights": {
+      "enum": [
+        "project_owned",
+        "public_domain",
+        "licensed",
+        "analysis_only",
+        "excluded"
+      ]
+    },
+    "readerDistributionAllowed": {
+      "type": "boolean"
+    },
+    "sourceNote": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "manuscriptWordOffset": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resources": {
+      "type": "object",
+      "required": [
+        "inputTokens",
+        "outputTokens",
+        "calls",
+        "rejectedCandidates",
+        "revisionCalls",
+        "humanEditingSeconds",
+        "humanSelectionSeconds",
+        "costEstimate"
+      ],
+      "properties": {
+        "inputTokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outputTokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "calls": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rejectedCandidates": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revisionCalls": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "humanEditingSeconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "humanSelectionSeconds": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "costEstimate": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

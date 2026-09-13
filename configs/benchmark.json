@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "studyId": "beyond-fluency-pilot",
+  "seed": "replace-with-frozen-study-seed",
+  "baselineCommit": "1ce34a1593595d30cfa1889cfef8dbb7dbc42e84",
+  "registeredProtocol": null,
+  "primaryOutcomes": ["Expert pairwise literary preference by length tier", "Conditional voice-drift trajectory and time to a prespecified severe event"],
+  "secondaryOutcomes": ["Continuity, viewpoint, promises and motifs", "Protected ambiguity and overcorrection", "Originality relative to authorized comparison sources", "Cost and human intervention time"],
+  "exclusions": ["Predeclare exclusions before evaluation; retain failed, truncated and rejected trials in the inventory"],
+  "stoppingRule": "Freeze pilot budgets and stopping conditions before generation. Stop on exhausted authorization, repeated failure, rights conflicts or lost work; do not silently rescue a failed condition.",
+  "conditionIds": ["extension_022", "B0", "B1", "B2", "B3", "B4", "B5", "B6", "P"],
+  "lengthTiers": [1000, 5000, 20000, 50000, 100000],
+  "selectedAblations": ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13", "A14", "A15"],
+  "negativeControls": ["sentence_length_noise", "synonym_substitution", "roughness_noise"],
+  "resourcePolicy": "cost_matched",
+  "generationAuthorized": false,
+  "humanEvaluationStatus": "not_performed"
+}

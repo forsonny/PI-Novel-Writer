@@ -1,0 +1,5 @@
+# Change 30: source-bound legacy suggestions and line edits
+
+New suggestions require the source hash the editor actually read. They retain stable scene identity, current address fallback, and full prose hash; acceptance cannot rely on a short phrase still matching. Suggestions follow a moved scene only through its stable identity. Unversioned historical suggestions are retained but require a new source-bound proposal before acceptance. Line edits also require their expected source version. Suggestion/rejection/modification mutations share the same file queue; passage edits verify the loaded project did not change.
+
+Review: 130 local tests, strict types and syntax pass. New real-dispatch fixtures cover stale context with an unchanged quote, stale line numbers, legacy records, and a moved scene. No manuscript words change on rejected requests. Legacy suggestion-log and scene-file writes are not an atomic canonical transaction; managed acceptance is the stronger path and remains required during managed autonomous writing. The source-bound fields are an intentional tool-schema change documented in the editing skill.

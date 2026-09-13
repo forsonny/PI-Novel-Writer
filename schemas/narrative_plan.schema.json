@@ -1,0 +1,267 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "level",
+    "parentId",
+    "title",
+    "purpose",
+    "order",
+    "sceneIds",
+    "obligations",
+    "entryState",
+    "exitStateRange",
+    "openAlternatives",
+    "protectedUnknowns",
+    "endingConstraints",
+    "contrast",
+    "promiseIds",
+    "viewpointIds",
+    "informationBudget",
+    "dependencies",
+    "changeReason"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "level": {
+      "enum": [
+        "novel",
+        "arc",
+        "chapter"
+      ]
+    },
+    "parentId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sceneIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "maxItems": 2000
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "statement",
+          "hardness",
+          "preconditions",
+          "dependsOn",
+          "acceptableOutcomes",
+          "deferralAllowed",
+          "completionEvidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "hardness": {
+            "enum": [
+              "hard",
+              "soft",
+              "open"
+            ]
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "hash"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "hash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 2000
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "maxItems": 100
+          },
+          "acceptableOutcomes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20000
+            },
+            "maxItems": 256
+          },
+          "deferralAllowed": {
+            "type": "boolean"
+          },
+          "completionEvidence": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "entryState": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "exitStateRange": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "openAlternatives": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "protectedUnknowns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "endingConstraints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "contrast": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "promiseIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "maxItems": 100
+    },
+    "viewpointIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "maxItems": 100
+    },
+    "informationBudget": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "changeReason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    }
+  },
+  "additionalProperties": false
+}

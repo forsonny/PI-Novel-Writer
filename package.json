@@ -1,8 +1,8 @@
 {
   "name": "@sonny/pi-novel-writer",
-  "version": "0.2.2",
+  "version": "0.3.0-rc.1",
   "type": "module",
-  "description": "Autonomous, evidence-led novel writing for Pi",
+  "description": "Evidence-led literary writing for Pi with conditional voice, isolated workers and versioned acceptance",
   "keywords": [
     "pi-package"
   ],
@@ -34,7 +34,8 @@
       "./skills/copy-edit",
       "./skills/continuity-check",
       "./skills/voice-match",
-      "./skills/github-setup"
+      "./skills/github-setup",
+      "./skills/literary-workflow"
     ],
     "prompts": [
       "./prompts"
@@ -69,7 +70,11 @@
   "scripts": {
     "test": "node scripts/test.mjs",
     "typecheck": "tsc --noEmit",
-    "check": "node scripts/check.mjs && npm run typecheck && npm test"
+    "check": "node scripts/check.mjs && npm run typecheck && npm run schemas:check && npm test",
+    "evaluate": "node --experimental-strip-types scripts/evaluate.mjs",
+    "schemas": "node --experimental-strip-types scripts/export-schemas.mjs",
+    "schemas:check": "node --experimental-strip-types scripts/export-schemas.mjs --check",
+    "pack:check": "node scripts/verify-package.mjs"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.85.1",
@@ -92,6 +97,8 @@
     "configs",
     "docs",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "scripts/evaluate.mjs",
+    "scripts/export-schemas.mjs"
   ]
 }

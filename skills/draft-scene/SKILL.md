@@ -7,6 +7,14 @@ description: "Workflow to generate a first draft from a scene outline"
 
 This skill guides the AI through drafting a complete scene from an outline.
 
+## Managed-project routing
+
+When `novel_literary_status` reports enabled managed writing, use the
+`literary-workflow` skill for preparation, bounded drafting, isolated review and
+atomic acceptance. The legacy direct-write instructions below apply only when
+managed writing is disabled. Do not copy a generated candidate directly into a
+scene to bypass protected meaning or current-source validation.
+
 ## Prerequisites
 - Use `novel_project_info` to confirm the format, then `novel_scene_list` to confirm the target exists.
 - Novel and novella scenes live under `manuscript/chapters/`; short-story scenes live under `manuscript/scenes/`; flash fiction uses `manuscript/story.md` as its single scene.

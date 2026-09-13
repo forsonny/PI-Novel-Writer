@@ -1,0 +1,162 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "studyId",
+    "seed",
+    "baselineCommit",
+    "registeredProtocol",
+    "primaryOutcomes",
+    "secondaryOutcomes",
+    "exclusions",
+    "stoppingRule",
+    "conditionIds",
+    "lengthTiers",
+    "selectedAblations",
+    "negativeControls",
+    "resourcePolicy",
+    "generationAuthorized",
+    "humanEvaluationStatus"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "studyId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}$"
+    },
+    "seed": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "baselineCommit": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "registeredProtocol": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "primaryOutcomes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "secondaryOutcomes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "exclusions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "stoppingRule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "conditionIds": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "extension_022",
+          "B0",
+          "B1",
+          "B2",
+          "B3",
+          "B4",
+          "B5",
+          "B6",
+          "P"
+        ]
+      },
+      "minItems": 2,
+      "maxItems": 9
+    },
+    "lengthTiers": {
+      "type": "array",
+      "items": {
+        "enum": [
+          1000,
+          5000,
+          20000,
+          50000,
+          100000
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 5
+    },
+    "selectedAblations": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "A1",
+          "A2",
+          "A3",
+          "A4",
+          "A5",
+          "A6",
+          "A7",
+          "A8",
+          "A9",
+          "A10",
+          "A11",
+          "A12",
+          "A13",
+          "A14",
+          "A15"
+        ]
+      },
+      "maxItems": 15
+    },
+    "negativeControls": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "sentence_length_noise",
+          "synonym_substitution",
+          "roughness_noise"
+        ]
+      },
+      "maxItems": 3
+    },
+    "resourcePolicy": {
+      "enum": [
+        "cost_matched",
+        "unconstrained_reported"
+      ]
+    },
+    "generationAuthorized": {
+      "type": "boolean",
+      "const": false
+    },
+    "humanEvaluationStatus": {
+      "type": "string",
+      "const": "not_performed"
+    }
+  },
+  "additionalProperties": false
+}

@@ -122,3 +122,27 @@ export function validateObligationGraph(nodes: Obligation[]): void {
   };
   nodes.forEach(n => visit(n.id));
 }
+
+/** Supersession links are scoped to one proposition chain. A model cannot hide
+ * a conflict by superseding an unrelated belief or nonexistent state record. */
+export function validateStateLinks(records: Proposition[]): void {
+  const byId = new Map(records.map(p => [p.id, p]));
+  if (byId.size !== records.length) throw new Error('Duplicate state identity');
+  const visited = new Set<string>(), active = new Set<string>();
+  const visit = (id: string) => {
+    if (visited.has(id)) return;
+    if (active.has(id)) throw new Error('Cyclic state supersession');
+    if (active.size >= 512) throw new Error('State supersession exceeds traversal limit');
+    const p = byId.get(id)!; checked(PropositionSchema, p); active.add(id);
+    if (new Set(p.supersedes).size !== p.supersedes.length) throw new Error('Duplicate state supersession');
+    for (const targetId of p.supersedes) {
+      const target = byId.get(targetId);
+      if (!target) throw new Error('Superseded state is unavailable');
+      if (target.subjectId !== p.subjectId || target.predicate !== p.predicate || target.layer !== p.layer || target.holderId !== p.holderId) throw new Error('Supersession crosses state or knowledge-holder boundaries');
+      visit(targetId);
+    }
+    if (p.conflictsWith.some(target => target === id || !byId.has(target))) throw new Error('Conflict references unavailable state');
+    active.delete(id); visited.add(id);
+  };
+  records.forEach(p => visit(p.id));
+}

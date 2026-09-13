@@ -7,22 +7,13 @@ import { Type } from "typebox";
 import { withFileMutationQueue } from "@earendil-works/pi-coding-agent";
 import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { readText, writeText } from "./utils/platform.ts";
-import { getProject, sessionUsageCost } from "./novel-core.ts";
+import { getProject, sessionUsageCost, countWords, parseFrontmatter } from "./novel-core.ts";
+import { proseHash as generateHash } from "./llgf/version.ts";
+import { manuscriptCoverage } from "./llgf/manuscript.ts";
 import { findAllBibleEntries } from "./novel-bible.ts";
 
 function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
-}
-
-function parseFrontmatter(content: string): { meta: Record<string, any>; body: string } {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!match) return { meta: {}, body: content };
-  const body = content.slice(match[0].length);
-  return { meta: {}, body };
-}
-
-function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function getTotalWords(project: any) {
@@ -65,6 +56,7 @@ interface WorkflowStageResult {
   stageId: number;
   stageLabel: string;
   stats: {
+    managedCoverage?: ReturnType<typeof manuscriptCoverage>;
     scenesByStatus: Record<string, number>;
     totalScenes: number;
     bibleEntryCount: number;
@@ -87,9 +79,9 @@ const STAGE_LABELS: Record<number, string> = {
   4: "Outlined - begin drafting",
   5: "Drafting - summaries need updating",
   6: "Drafting in progress",
-  7: "First draft complete - begin editing",
+  7: "Listed scenes drafted - check coverage before editing",
   8: "Editing in progress",
-  9: "Ready to export",
+  9: "Scenes marked polished/final - review status is separate",
 };
 
 async function detectWorkflowStage(
@@ -129,28 +121,11 @@ async function detectWorkflowStage(
     }
   }
 
-  function getEstimatedWordCount(scenes: Map<string, any>, root: string): number {
+  function getEstimatedWordCount(scenes: Map<string, any>, _root: string): number {
     let total = 0;
-    for (const [_key, meta] of scenes) {
+    for (const meta of scenes.values()) {
       if (meta.status === "outline") continue;
-      const chPad = String(meta.chapter).padStart(2, "0");
-      const scPad = String(meta.scene).padStart(2, "0");
-      const filePath = path.join(
-        root,
-        "manuscript",
-        "chapters",
-        chPad,
-        `scene-${scPad}.md`
-      );
-      if (!fs.existsSync(filePath)) continue;
-      try {
-        const raw = fs.readFileSync(filePath, "utf8");
-        const fmEnd = raw.indexOf("---\n", 4);
-        const body = fmEnd !== -1 ? raw.slice(fmEnd + 4) : raw;
-        total += Math.floor(body.length / 5);
-      } catch {
-        // skip unreadable files
-      }
+      total += countWords(parseFrontmatter(readText(meta.filePath)).body);
     }
     return total;
   }
@@ -186,6 +161,7 @@ async function detectWorkflowStage(
   ).size;
 
   const stats = {
+    ...(project ? { managedCoverage: manuscriptCoverage(project) } : {}),
     scenesByStatus,
     totalScenes,
     bibleEntryCount,
@@ -269,7 +245,7 @@ async function detectWorkflowStage(
   const missingSummary = [...scenes.entries()].some(([key, meta]) => {
     if (!draftedStatusSet.has(meta.status)) return false;
     const summaryPath = path.join(rootPath, "summaries", "scenes", `${key}.md`);
-    return !fs.existsSync(summaryPath);
+    return !fs.existsSync(summaryPath) || parseFrontmatter(readText(summaryPath)).meta.hash !== generateHash(parseFrontmatter(readText(meta.filePath)).body);
   });
   if (missingSummary) return makeResult(5);
 
@@ -550,6 +526,7 @@ export default function novelProgressExtension(pi: any) {
           writtenToday, dailyGoal, dPct,
           words, totalGoal, tPct,
           apiCost: sessionUsageCost(ctx),
+          managedCoverage: manuscriptCoverage(project),
           history: progress.history
         }
       });

@@ -1,13 +1,20 @@
 ---
-description: "Refine dialogue for naturalism, subtext, and character voice"
+description: "Diagnose and minimally repair dialogue function, subtext and voice"
 ---
-# Dialogue Polish
+# Dialogue review
 
-You are an expert editor focusing on dialogue. Polish the following prose to improve the natural flow of conversation.
-- Remove clunky exposition from dialogue ("As you know...").
-- Inject subtext—what are the characters *not* saying?
-- Ensure each character sounds distinct based on the Voice Profile and Bible entries.
-- Use dialogue tags and action beats only where attribution, rhythm, or subtext needs them; do not vary them mechanically.
+Read current prose and the participants' knowledge, aims, relationship, social
+position and voice. State the specific failure and its evidence before proposing
+an edit. Change what an utterance does before adding decorative wording.
 
-Original Text:
+Preserve effective directness, evasion, nonresponse, unequal turns and silence.
+Do not invent hidden motives to inject subtext, equalize wit, force contractions,
+or add varied tags and action beats mechanically. Exposition is not automatically
+redundant; determine whether participants and readers need it here. Check the
+revision for changed knowledge, meaning, ambiguity and character caricature.
+
+Use the managed proposal/review/acceptance path when enabled. Otherwise present a
+minimal-difference suggestion. Returning "keep the source" is valid.
+
+Target and instructions:
 $@

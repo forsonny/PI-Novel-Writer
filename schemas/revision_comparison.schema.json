@@ -1,0 +1,178 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "sourceHash",
+    "candidateHash",
+    "preferred",
+    "targetImproved",
+    "semanticChanges",
+    "regressions",
+    "pairedRiskAcceptable",
+    "checks",
+    "rationale",
+    "dependencies"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "sourceHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "candidateHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "preferred": {
+      "enum": [
+        "source",
+        "candidate",
+        "tie"
+      ]
+    },
+    "targetImproved": {
+      "type": "boolean"
+    },
+    "semanticChanges": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 100
+    },
+    "regressions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 100
+    },
+    "pairedRiskAcceptable": {
+      "type": "boolean"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "propertyId",
+          "outcome",
+          "rationale",
+          "method",
+          "evidence",
+          "readingsPreserved"
+        ],
+        "properties": {
+          "propertyId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "outcome": {
+            "enum": [
+              "preserved",
+              "violated",
+              "uncertain"
+            ]
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "method": {
+            "enum": [
+              "model_assisted",
+              "human"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "sceneId",
+                "textHash",
+                "start",
+                "end",
+                "quote",
+                "offsetUnit"
+              ],
+              "properties": {
+                "sceneId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "textHash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                },
+                "offsetUnit": {
+                  "type": "string",
+                  "const": "utf16"
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 50
+          },
+          "readingsPreserved": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20000
+            },
+            "maxItems": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    }
+  },
+  "additionalProperties": false
+}

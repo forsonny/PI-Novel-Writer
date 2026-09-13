@@ -1,0 +1,172 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "inputHash",
+    "reconstruction",
+    "checks",
+    "futureControlRecommendations",
+    "proposedPlanChanges",
+    "limitations",
+    "humanLiteraryEvaluation"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "inputHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "reconstruction": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "dimension",
+          "outcome",
+          "evidence",
+          "rationale",
+          "blocking",
+          "causeLevel",
+          "smallestRepair",
+          "pairedRisk"
+        ],
+        "properties": {
+          "dimension": {
+            "enum": [
+              "continuity",
+              "causality",
+              "character_history",
+              "perspective",
+              "promises",
+              "motifs",
+              "pacing_contrast",
+              "scene_and_paragraph_shapes",
+              "voice_evolution",
+              "revision_regression",
+              "originality_scope"
+            ]
+          },
+          "outcome": {
+            "enum": [
+              "supported",
+              "concern",
+              "uncertain",
+              "licensed",
+              "not_assessed"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "sceneId",
+                "textHash",
+                "start",
+                "end",
+                "quote",
+                "offsetUnit"
+              ],
+              "properties": {
+                "sceneId": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                },
+                "textHash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 20000
+                },
+                "offsetUnit": {
+                  "type": "string",
+                  "const": "utf16"
+                }
+              },
+              "additionalProperties": false
+            },
+            "maxItems": 30
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "causeLevel": {
+            "enum": [
+              "state",
+              "plan",
+              "context",
+              "generation",
+              "revision",
+              "long_range",
+              "unknown"
+            ]
+          },
+          "smallestRepair": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "pairedRisk": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 11,
+      "maxItems": 11
+    },
+    "futureControlRecommendations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "proposedPlanChanges": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "humanLiteraryEvaluation": {
+      "type": "string",
+      "const": "not_performed"
+    }
+  },
+  "additionalProperties": false
+}

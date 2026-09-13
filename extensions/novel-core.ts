@@ -266,6 +266,11 @@ function loadProject(rootPath: string): NovelProject {
   return { config, rootPath, scenes };
 }
 
+/** Read a fresh, path-validated project view without changing the loaded project. */
+export function readProjectSnapshot(rootPath: string): NovelProject {
+  return loadProject(rootPath);
+}
+
 export function refreshProject(): NovelProject | null {
   const p = getProject();
   if (p) {
@@ -291,10 +296,13 @@ export function saveScene(filePath: string, content: string): void {
   writeText(filePath, content);
 }
 
-export async function replacePassage(chapter: number, scene: number, original: string, replacement: string, expectedSourceHash?: string) {
-  const entry = refreshProject()?.scenes.get(sceneKey(chapter, scene));
+export async function replacePassage(chapter: number, scene: number, original: string, replacement: string, expectedSourceHash?: string, expectedProjectRoot?: string) {
+  const current = refreshProject();
+  if (expectedProjectRoot && current?.rootPath !== expectedProjectRoot) throw new Error("The loaded project changed before editing.");
+  const entry = current?.scenes.get(sceneKey(chapter, scene));
   if (!entry) throw new Error(`Scene ${chapter}.${scene} not found.`);
   return withFileMutationQueue(entry.filePath, async () => {
+    if (getProject()?.rootPath !== current!.rootPath) throw new Error("The loaded project changed before editing.");
     const raw = readText(entry.filePath);
     const { body } = parseFrontmatter(raw);
     expectVersion(body, expectedSourceHash);
