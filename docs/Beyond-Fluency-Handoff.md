@@ -1,31 +1,28 @@
-# Beyond Fluency recovery: Windows verification and pending hosted checks
+# Beyond Fluency: verified merge and handoff
 
 ## Outcome
 
-**NOT MERGED. Windows engineering checks pass; hosted matrix checks remain blocked.**
+**MERGED through [PR #2](https://github.com/forsonny/PI-Novel-Writer/pull/2)
+on 13 September 2026 at 07:26:17 UTC.**
 
-The delivery was recovered exactly and integrated with the newer master handoff.
-After the user expanded the Temporary-File Exception to include directories and
-reloaded, the original candidate passed 147 tests on Windows Node 22.19.0.
-Two independent read-only source reviews identified three concrete gaps; all
-three were reproduced, fixed separately and checked. Testing the actual Git
-checkout also exposed a Windows line-ending failure, corrected without weakening
-schema comparison. The corrected implementation passes 149 tests, strict types,
-29 schema comparisons, syntax checks and the package check (189 files).
+The exact delivery was recovered, integrated with newer master documentation,
+reviewed, corrected in seven separate checkpoints, and merged without force or
+branch deletion. Fresh GitHub reads confirmed the merge and resulting master
+`5f80cba0eee466ef3f96bc237a505db7cfe07b27`.
 
-The remaining blocker is **hosted execution policy, not missing GitHub access**.
-The revised exception names only `C:\Users\Sonny\AppData\Local\Temp\`.
-GitHub's Ubuntu, macOS and Windows runners use other temporary locations, while
-the policy still requires the Windows Recycle Bin for all other removal.
-Their test/package cleanup therefore is not covered by that exception.
-No PR was opened because that automatically starts the matrix. No test assertion
-or CI requirement was disabled to obtain a pass.
+The final implementation passed **151 tests, zero failures/skips, strict typing,
+29 runtime/schema comparisons, syntax checks and package/import/private-exclusion
+checks (189 files) on Ubuntu, Windows and macOS, all using Node 22.19.0**.
+The PR test-merge tree exactly equals the actual merge tree. Post-merge evidence
+is recorded below. This report is a documentation follow-up to the feature merge.
 
-**Smallest next user action:** provide an execution environment whose governing
-rules explicitly permit verified disposable hosted-runner cleanup, or independently
-open/run the candidate PR and supply exact-head CI evidence. The local exception
-is no longer the blocker. Normal branch/push/PR/merge authorization was already
-given and need not be requested again. Do not silently broaden the cleanup rule.
+The earlier cleanup-policy blockers were resolved by explicit user-requested rule
+changes and reloads. The hosted workflow was inspected: GitHub-hosted disposable
+runners, no workstation mounts or persistent/external cleanup targets, read-only
+repository permissions, pinned standard actions, no shared-cache cleanup.
+Job metadata confirmed the GitHub Actions runner group for all three platforms.
+No local safeguard or assertion was bypassed. No paid provider call, private
+manuscript upload, npm publication or independent human literary evaluation occurred.
 
 ## Actual repository and delivery identities
 
@@ -34,7 +31,7 @@ given and need not be requested again. Do not silently broaden the cleanup rule.
 | Repository | `forsonny/PI-Novel-Writer` |
 | Authenticated access | GitHub CLI authenticated; repository permission ADMIN; recovery push succeeded |
 | Default branch | `master` |
-| Current master | `157a62df9d35a979a949304d742fed7628cc94c7` |
+| Master at recovery start | `157a62df9d35a979a949304d742fed7628cc94c7` |
 | Historical reviewed branch | `9845c06ba67ba5bada2e7635244bbdf79534d0d3` |
 | Historical completion branch | `cd95b6c5003dc277e3573370cdb8ae30871e65fb` |
 | Existing merged PR | [#1](https://github.com/forsonny/PI-Novel-Writer/pull/1) |
@@ -47,12 +44,16 @@ given and need not be requested again. Do not silently broaden the cleanup rule.
 | Integrated recovery tree | `891805287476f57530234eaae7ab46846323ca3b` |
 | Preserved candidate commit | `76b9e3c5523466ee1be0c3489cf50aa31cc21191` |
 | Candidate branch | `recovery/beyond-fluency-candidate` |
-| Candidate parent | Current master `157a62df9d35a979a949304d742fed7628cc94c7` |
+| Candidate parent | Starting master `157a62df9d35a979a949304d742fed7628cc94c7` |
 | Integrated working branch | `recovery/beyond-fluency-verification` |
 | Implementation merge checkpoint | `616e253a3983aced26331a28b36219bcb994ede4` |
-| Corrected implementation commit | `3feb3190108491f13aaa454e0bcd8514f634bb15` |
-| Corrected implementation tree | `813013965b440655b5bddc1310a95077add52fc8` (before this report update) |
-| Candidate PR / merge / post-merge check | None / none / not applicable |
+| Final implementation head | `754c64c2e721d12ba3e8f537c09c177ee47be6e4` |
+| PR test-merge commit | `194ef75e76367423ee2950a2eafb0e310201d28d` |
+| Verified final implementation tree | `97eb0ba53eb3edb380f9a5309d46ec50f7ae1727` |
+| Feature PR | [#2](https://github.com/forsonny/PI-Novel-Writer/pull/2), merged |
+| Actual merge / resulting master | `5f80cba0eee466ef3f96bc237a505db7cfe07b27` |
+| Final-head PR checks | [34745144723](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34745144723), all three successful |
+| Post-merge checks | [34745228600](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34745228600), all three successful on actual merge `5f80cba...` |
 
 Branch protection lookup returned HTTP 404, “Branch not protected.” This is not
 permission to bypass verification. No repository settings were changed.
@@ -61,7 +62,7 @@ The old handoff describes Changes 01–19 as merged and a 107-test checkpoint as
 unmerged. The separately discovered
 `PI-Novel-Writer-0.3.0-rc.1-delivery.zip` contains later Changes 20–35 and claims
 147 tests. Those are different checkpoints, not interchangeable evidence.
-Master differs from the delivery's base only by `docs/HANDOFF.md`.
+Starting master differed from the delivery's base only by `docs/HANDOFF.md`.
 The integrated recovery tree differs from the exact delivery tree only by that
 preserved document. No newer source change was overwritten.
 
@@ -80,15 +81,15 @@ and the dissertation's evidence-status passages were also inspected. Reviews
 and every historical review were not independently re-audited.
 
 The application guard requires a clean checkout and exact base tree, then applies
-and stages the patch and checks the result tree. Current master is not that exact
-base: it contains a newer handoff. The guard was not bypassed or executed.
+and stages the patch and checks the result tree. Starting master was not that exact
+base: it contained a newer handoff. The guard was not bypassed or executed.
 Instead, an external alternate Git index loaded the verified completion base,
 checked and applied the cumulative patch **to the index only**, and produced the
-exact expected tree. A second alternate index started from current master and
+exact expected tree. A second alternate index started from that master and
 repeated the check/application. This preserved the extra handoff and produced the
 integrated tree above. Neither operation deleted working files.
 
-A normal commit object with current master as its parent preserves the integrated
+A normal commit object with starting master as its parent preserves the integrated
 tree. That candidate was pushed without force to its new branch. A fresh GitHub
 read returned the exact candidate commit. A fresh master read still returned
 `157a62d...`. No existing branch was deleted or rewritten. The candidate branch
@@ -127,9 +128,26 @@ findings were independently reproduced before repair:
    Windows checkout failed exact schema comparison although the LF-only ZIP
    passed. `.gitattributes` now retains LF for generated schema JSON. Existing
    schema tests reproduced and verify the repair; runtime schemas did not change.
+5. `d62844d016dac2b0206dbbe63e438201ea80d9d5`: hosted Windows rejected legitimate
+   Git repository roots with different native path spellings. Compare directory
+   filesystem identities instead of path strings. A namespaced-path regression
+   failed before repair and passed afterward; nested parent repositories remain
+   rejected. Six focused tests and strict types passed.
+6. `159e883826e1a2bcb0c7c589f625d61dc50f1cfc`: macOS temporary roots could use
+   `/var` while scanned scenes used `/private/var`, producing invalid relative
+   manuscript addresses. Canonicalize loaded project roots. An explicit
+   symlink-root regression failed before repair; 17 focused tests and types
+   passed afterward. Two existing path assertions now correctly expect the
+   already-documented canonical result rather than a lexical alias; containment
+   and escaping-symlink checks remain intact.
+7. `754c64c2e721d12ba3e8f537c09c177ee47be6e4`: retain the selected working-directory
+   alias when it resolves to the armed project's canonical root. This allows
+   legitimate note writes on macOS without allowing manuscript writes through
+   that alias. The protected-write regression failed before repair; all three
+   managed-completion tests and types passed afterward.
 
 Each issue was committed separately after its relevant checks and diff review.
-The final aggregate check passed 149/149 with no skips. No additional blocking
+The final hosted aggregate checks each passed 151/151 with no skips. No additional blocking
 product defect was established by these reviews. This is bounded engineering
 review, not proof that all possible defects are absent.
 
@@ -146,12 +164,12 @@ review, not proof that all possible defects are absent.
 | Candidate syntax | Passed for extracted candidate and integrated checkout |
 | Local runtime | Windows / Git Bash; Node `v22.19.0` |
 | Installed development versions | Pi `0.85.1`, TypeBox `1.3.27`, TypeScript `5.9.3`, Node types `22.19.19`; inspected installed manifests |
-| Dependency installation | `npm ci --ignore-scripts --no-audit --no-fund`: exit 0, 228 packages; cleanup warnings described below |
+| Dependency installation | Local install exited 0 with cleanup warnings; clean hosted `npm ci --ignore-scripts` passed on all three platforms |
 | Strict type checking | Passed original and corrected implementation |
 | Runtime/exported schema comparison | Passed, 29 exact comparisons |
-| Regression suite | Original 147/147; corrected implementation 149/149; no skips |
+| Regression suite | Original local 147/147; local four-fix checkpoint 149/149; final hosted implementation 151/151 on each platform |
 | Fresh package/import/exclusion check | Passed: original 187 files, integrated 189 (two retained handoffs) |
-| Ubuntu / Windows / macOS candidate CI | Not run |
+| Ubuntu / Windows / macOS candidate CI | All passed in run 34745144723 at the final implementation tree |
 | Live-provider evaluation | Not run; no paid calls authorized or started |
 | Human literary evaluation | Not run |
 
@@ -206,9 +224,35 @@ Its underlying filesystem cause was not established; no retry, assertion or
 error handling was weakened. Investigate if it recurs in final-tree verification;
 the passing rerun does not prove that intermittent Windows I/O failures cannot occur.
 
+### Hosted failures, repairs and final verification
+
+| Run | Tested head | Result |
+|---|---|---|
+| [34744782436](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34744782436) | `53d331b7371dfa2b722d2b20b5bab4c9424d190c` | Ubuntu 149 passed; Windows 146 passed / 3 failed (Git-root aliases); macOS 143 passed / 6 failed (canonical-root mismatch and path expectations). |
+| [34744962850](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34744962850) | `159e883826e1a2bcb0c7c589f625d61dc50f1cfc` | Ubuntu and Windows 151 passed; macOS 150 passed / 1 failed (note-write alias handling). |
+| [34745144723](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34745144723) | `754c64c2e721d12ba3e8f537c09c177ee47be6e4` | All three: 151 passed, zero failed/skipped; types, schemas and package checks passed. |
+| [34745228600](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34745228600) | `5f80cba0eee466ef3f96bc237a505db7cfe07b27` | Post-merge: all three passed all 151 tests, types, 29 schemas and 189-file package checks. |
+
+The passing PR jobs were Ubuntu `103691578349`, Windows `103691578441`, and
+macOS `103691578459`. All checked out test-merge commit `194ef75...`; its tree
+`97eb0ba...` matched both the source head and actual merge `5f80cba...`.
+The merge used an expected-head guard, and repository automatic branch deletion
+was confirmed disabled. Both historical development branches and both recovery
+branches remained present after merge.
+
+Hosted logs are retained locally as `hosted-first-failures.log`,
+`hosted-second-failures.log`, `hosted-passing-candidate.log` and `hosted-postmerge.log` in the external
+recovery-evidence directory. GitHub retained source snapshots and normal run
+logs. Hosted runs do not use the workstation preload.
+
+GitHub warned that the pinned action wrappers now run under its Node 24
+compatibility handling. The actual project test runtime was explicitly logged as
+Node 22.19.0 on every platform. The warning did not fail checks, and updating
+unrelated action versions was not added to this merge task.
+
 Historical GitHub results read this session:
 
-- [34740428855](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34740428855): success at current master `157a62d...`.
+- [34740428855](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34740428855): success at starting master `157a62d...`.
 - [34740186040](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34740186040): success at merge `8fbc555...`.
 - [34739979178](https://github.com/forsonny/PI-Novel-Writer/actions/runs/34739979178): success at completion base `cd95b6c...`.
 - Historical reviewed-branch run `34733954080` was failed. It was not investigated as a candidate failure.
@@ -236,21 +280,21 @@ Its own text calls the integrated framework an original proposal, says the
 novel-scale benchmark has not been executed, and identifies the six passages as
 a worked demonstration rather than independent model runs.
 
-## S01–S24 reconciliation at this blocked checkpoint
+## S01–S24 reconciliation at the verified engineering checkpoint
 
 Execution Changes 01–35 are not blueprint tickets S01–S24. “Implemented and
 verified” below is limited to the stated software behavior exercised by the
-fresh Windows tests and bounded source review. It is not cross-platform, live
-provider or literary-efficacy certification. Partial means a material part of the
+fresh three-platform tests and bounded source review. It is not live-provider
+or literary-efficacy certification. Partial means a material part of the
 original ticket extends beyond the delivered software or executed evidence.
-All named test files ran in the 149-test aggregate. Paths are relative to the candidate.
+All named test files ran in the 151-test aggregate on each platform. Paths are relative to the repository.
 `extensions/llgf/` is abbreviated as `llgf/`.
 
 | Ticket | Status | Implementation and available verification | Remaining acceptance boundary |
 |---|---|---|---|
 | S01 Git safety | Implemented and verified | `extensions/novel-github.ts`, `extensions/utils/git.ts`; `tests/git-safety.test.ts` | Tested previews, secret exclusions, scoped staging and no force fallback; not a live publication trial. |
 | S02 path/metadata safety | Implemented and verified | `extensions/novel-core.ts`, `extensions/utils/safety.ts`; `tests/path-safety.test.ts` | Windows containment/metadata tests pass; not a hostile-process sandbox. |
-| S03 verification harness | Partial | `package.json`, `.github/workflows/verify.yml`, `scripts/check.mjs`, `scripts/test.mjs`, `.gitattributes` | Syntax, types, schemas and tests pass locally; hosted matrix remains unrun. |
+| S03 verification harness | Implemented and verified | `package.json`, `.github/workflows/verify.yml`, `scripts/check.mjs`, `scripts/test.mjs`, `.gitattributes` | Syntax, types, schemas and tests pass on Ubuntu, Windows and macOS with Node 22.19.0; other host/runtime versions are not established. |
 | S04 source distinctions | Implemented and verified | `research/source-crosswalk.md`, `llgf/taxonomy.ts`, `llgf/pattern-cards.ts`; taxonomy/pattern-card tests | 56-to-48 mapping, scale distinctions and critic-card dispatch pass; not empirical taxonomy validation. |
 | S05 identities/versions | Partial | `llgf/version.ts`, core scene operations; `tests/version.test.ts`, extension-integration tests | Scene move/split/merge and version checks pass; full legacy entity/bible migration is not established. |
 | S06 unified acceptance | Partial | `llgf/store.ts`, `llgf/pipeline.ts`; store/pipeline/integrity tests | Managed atomic acceptance is delivered; review 30 explicitly retains non-atomic legacy suggestion-log/scene writes. |
@@ -310,68 +354,69 @@ The synthetic 100,000-word test concerns storage/export, not novel-writing quali
   `/PNW-literary restore <snapshot>` previews and `apply-restore <digest>` creates
   a new accepted snapshot rather than erasing history. Preserve working files and
   inspect an accepted export before reconciling them.
-- Keep project-data rollback separate from code rollback. The candidate remains
-  isolated on a new branch, so master requires no rollback. Never hard-reset or
-  force-push to erase this checkpoint. A future merged code rollback should use a
-  reviewed revert and must not assume older code can safely open migrated data.
+- Keep project-data rollback separate from code rollback. The implementation is
+  now merged. If a code rollback is needed, use a reviewed revert of merge
+  `5f80cba...` against its first parent rather than hard-resetting or force-pushing.
+  Do not assume older code can safely open migrated project data. Preserve data
+  backups and accepted history independently before any rollback.
 - Hashes and permissions are not encryption, truth, literary merit or proof of
   originality. Unknown costs are not zero. Human review must remain “not performed”
   unless actual independent readers supplied it.
 
 ## Prioritized remaining work
 
-1. **Resolve hosted cleanup constraint.** Acceptance: governing rules explicitly
-   permit cleanup in verified disposable hosted runners, or independently supplied
-   exact-head matrix logs exist. The Windows Temp directory exception is active
-   and has already enabled the local suite; do not repeat the earlier blocker.
-2. **PR and final-tree CI.** Preserve current master, open a scoped PR, run Ubuntu,
-   Windows and macOS on Node 22.19.0, inspect exact head/merge-test identities,
-   resolve blocking failures, then merge with the expected-head guard. Freshly read
-   PR, merge commit and resulting master; record post-merge verification. A push is
-   not a merge, and an older successful run is insufficient.
-3. **Close merge evidence.** Record the PR, final tested head, merge commit, resulting
-   master and post-merge checks in this handoff. Preserve all four corrective
-   checkpoints. Fix only new concrete failures, not optional research scope.
-4. **Remaining original-plan scope, separately scheduled.** S05/S06/S09: acceptance
-   criteria are explicit legacy entity/outline migration and documented coverage of
-   every legacy mutation, without silently replacing author text. S15/S20: calibrated
-   semantic diagnostics/longitudinal alerts need declared corpora and independent
-   validation; unmeasured fields must remain unknown. These gaps do not require
-   expanding this merge task.
-5. **Separate later release/research gates.** With separate authorization, exercise
-   an intended provider on a disposable project; conduct preregistered blinded
-   human literary evaluation independently. Neither is to be fabricated or silently
-   started during this recovery task. S24 acceptance requires matched-cost baselines,
-   held-out works, retained failures and actual reader evidence at the claimed length;
-   the offline packet generator is not that result. Do not publish to npm.
+The recovery, corrective review and implementation merge are complete.
+The following are separately scoped follow-up work, not blockers to this merge:
+
+1. **Live-host/provider validation before production use.** With explicit
+   transmission and budget approval, exercise a disposable original project in
+   the intended Pi host/provider: prepare, run, pause/resume, accept, inspect state,
+   and export. Acceptance: actual schema compliance, usage/cancellation evidence,
+   preserved author text, and honest limits. No paid call is authorized by this
+   handoff alone.
+2. **Legacy migration/mutation coverage (S05/S06/S09).** Inventory remaining legacy
+   entity, outline and edit paths; decide compatibility/deprecation explicitly.
+   Acceptance: migration previews preserve custom text, every claimed managed
+   path uses source checks and acceptance, and legacy exceptions are visible.
+   Do not turn this into an unrequested rewrite of working compatibility tools.
+3. **Calibrated diagnostics and longitudinal assessment (S15/S20).** Acceptance:
+   declared corpora/conditions, independent evidence, unknown values for missing
+   calibration, preserved voice epochs, and report-only alarms until validated.
+4. **Empirical literary evaluation (S24).** Acceptance: preregistered matched-cost
+   baselines, held-out works, retained failed/rejected outputs and interventions,
+   blinded actual readers, and uncertainty at the lengths/models actually tested.
+   Fifteen declared ablation labels and a packet generator are not fifteen
+   executed experiments. A synthetic 100k-word storage pass is not a novel result.
+5. **Release decision.** Confirm actual host/provider behavior, licenses, install
+   instructions and the intended distribution version. Publication needs separate
+   authorization. The package remains `0.3.0-rc.1`; nothing was published to npm.
+
+The one intermittent local atomic-write failure remains a disclosed observation,
+not an identified persistent defect. Its underlying cause was not established;
+it did not recur in the passing hosted final-head or post-merge matrices. Preserve
+its logs if investigation becomes necessary rather than adding speculative retries.
 
 ## Self-contained next-session prompt
 
-> Resume recovery/verification of forsonny/PI-Novel-Writer, not implementation from
-> scratch. Read docs/Beyond-Fluency-Handoff.md on
-> recovery/beyond-fluency-verification and the original delivery/blueprint.
-> Current master was 157a62df9d35a979a949304d742fed7628cc94c7. Use the updated
-> recovery/beyond-fluency-verification branch, NOT the untouched preservation
-> branch recovery/beyond-fluency-candidate. Recovery proved all 16 checksums,
-> 230 source blob identities and exact delivery tree 4e418f00c8126cabe4166f8bfd1ed980251b1ad2.
-> The newer master handoff was retained. Two independent source reviews produced
-> three reproduced/fixed blockers: reading-order acceptance, selected voice-anchor
-> dependency freshness and unrestricted export during managed autonomy. A fourth
-> repair keeps generated schema line endings stable in Windows Git checkouts.
-> Corrected implementation 3feb3190108491f13aaa454e0bcd8514f634bb15 passes
-> syntax, strict types, 29 schema comparisons and 149/149 tests on Windows Node
-> 22.19.0; package check passes 189 files. Read the subsequent report-only commit
-> for the latest evidence. No live provider, human study, candidate PR or merge
-> occurred. The user expanded/reloaded the exception for local Temp directories;
-> local cleanup is no longer blocked. Hosted runner cleanup remains outside the
-> one named Windows Temp location, so resolve that governing-environment boundary
-> before triggering the matrix. Do not change tests to evade it. Review retained
-> failure and passing logs described in the handoff. GitHub ADMIN and push work.
-> Verify fresh remote state, run the exact final-tree Ubuntu/Windows/macOS matrix
-> once permitted, fix only concrete failures, and merge only the verified final
-> tree. Existing authorization covers branches, fixes, commits, pushes, PR and
-> merge; do not ask for that again. No force push, unrelated overwrite, branch
-> deletion, npm publication, private manuscript upload or paid experiment.
-> Preserve uncertainty and separate engineering results, provider validation and
-> human literary evaluation. Confirm the merge remotely and update/download the
-> handoff; otherwise report the precise blocker and smallest user action.
+> Continue PI Novel Writer from current master, not an old delivery archive.
+> Read docs/Beyond-Fluency-Handoff.md and inspect fresh remote state before changing
+> anything. The recovery/merge task is complete: PR #2 merged at
+> 5f80cba0eee466ef3f96bc237a505db7cfe07b27 from head
+> 754c64c2e721d12ba3e8f537c09c177ee47be6e4. Its tree
+> 97eb0ba53eb3edb380f9a5309d46ec50f7ae1727 matched the passing PR test merge.
+> Run 34745144723 passed before merge and 34745228600 passed on the actual merge:
+> Ubuntu, Windows and macOS, Node 22.19.0, 151 tests each, strict types, 29 schema
+> comparisons and 189-file package/import/private-exclusion checks. A later
+> documentation-only commit finalizes the report; inspect its current check status.
+> Recovery verified 16 delivery checksums and 230 source blobs, preserved newer
+> master work, and fixed seven concrete issues in separate commits. Do not reapply
+> the cumulative patch or recreate those fixes. Both development and recovery
+> branches were retained. No force push, npm publication, private manuscript upload,
+> paid provider experiment or human literary evaluation occurred.
+> Engineering results are not literary-efficacy evidence; the synthetic 100k-word
+> case tested storage/export only. Read the S01–S24 map and remaining-work acceptance
+> criteria before proposing the next scope. Ask for the user's next product priority
+> if none is given; do not automatically start the deferred research or paid work.
+> Preserve source versions, ambiguity, voice, author text and explicit transmission
+> authority. Use small verified checkpoints and stop on a concrete blocker rather
+> than bypassing checks or overwriting unrelated work.
