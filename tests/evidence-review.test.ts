@@ -40,3 +40,26 @@ test('append-only drafting rebases exact protected offsets without losing previo
     assert.equal(s.activeContract.protected[0].spans[0].start, 0);
   } finally { f.dispose(); }
 });
+test('accepted reviews retain the evidence dependencies of selected voice anchors', async () => {
+  const f = pipelineFixture(); try {
+    const source = f.store.put('design', newId(), { rationale: 'Reference provenance' });
+    f.store.commit({ expectedHead: f.store.head().hash, requestId: 'anchor-source', changes: [source], dependencies: [] });
+    const anchorId = newId();
+    f.setup.voice.anchorIds = [anchorId];
+    f.setup.anchors = [{ schemaVersion: 1, id: anchorId, kind: 'anchor', function: 'Unresolved quiet',
+      when: { focalizerIds: [], sceneFunctions: [], epochIds: [], pressures: [], distances: [] },
+      excerpt: 'Only the dust moved.', sourceSpan: null, sourceRecords: [source], narrativeIndex: null,
+      rights: { status: 'author_owned', basis: 'Test fixture', permitted: ['drafting', 'analysis'], livingAuthor: false, permissionRecorded: true },
+      wordingPolicy: 'function_only' }];
+    const p = prepareScene(f.root, f.address, f.setup, proseHash(f.body)), mock = mockPipelineHost(f.address.id);
+    const permit = { projectId: f.store.projectId, runId: p.id, epoch: 1, provider: 'fixture', model: 'mock', active: () => true };
+    const state = await runScene(f.root, p.id, mock.host, permit);
+    assert.ok(state.records.filter(r => r.key.startsWith('model_call:')).some(r => JSON.stringify(f.store.artifact(r.hash).payload).includes('Only the dust moved.')));
+    acceptScene(f.root, p.id, permit);
+    const key = `acceptance:${f.address.id}`, ref = { key, hash: f.store.head().snapshot.versions[key] };
+    assert.deepEqual(f.store.stale([ref]), []);
+    const changed = f.store.put('design', source.key.split(':')[1], { rationale: 'Changed provenance' });
+    f.store.commit({ expectedHead: f.store.head().hash, requestId: 'changed-anchor-source', changes: [changed], dependencies: [] });
+    assert.deepEqual(f.store.stale([ref]), [ref]);
+  } finally { f.dispose(); }
+});

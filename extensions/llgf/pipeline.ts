@@ -184,7 +184,10 @@ async function runSceneUnlocked(root: string, id: string, host: WorkerHost, perm
     fresh(); const model = host.model; if (!model) throw new Error('No model selected');
     const maxOutput = Math.min(model.maxTokens, 10000), prompt = workerPrompt(task, schema);
     const packet = task === 'read' ? evidencePacket(p.projectId, p.address.id, 'critic', { role: 'critic', sceneId: p.address.id, localProse: body, textHash: proseHash(body), task: 'prose_first_reconstruction' }, [], { modelWindow: model.contextWindow, outputReserve: maxOutput, hostTokens: estimateTokens(prompt), safetyReserve: 1024, maxInputTokens: 48000 }) : composeContext({ projectId: p.projectId, role: roleFor(task), contract, voice, localProse: body, nextMove: canonicalJson(instruction), participantIds: p.setup.participantIds,
-      required: p.setup.required, controlSources: [], currentVersions: at.snapshot.versions,
+      required: p.setup.required, controlSources: p.setup.anchors.filter(a => voice.selectedAnchors.includes(a.id)).flatMap(a => [
+        ...a.sourceRecords,
+        ...(a.sourceSpan && a.sourceSpan.sceneId !== p.address.id ? [{ key: `prose:${a.sourceSpan.sceneId}`, hash: at.snapshot.versions[`prose:${a.sourceSpan.sceneId}`] }] : []),
+      ]), currentVersions: at.snapshot.versions,
       budget: { modelWindow: model.contextWindow, outputReserve: maxOutput, hostTokens: estimateTokens(prompt), safetyReserve: 1024, maxInputTokens: 48000 } }, memories);
     const reserved = jobs.reserve(id, packet.hash, estimateTokens(prompt + packet.text) + maxOutput, permit);
     let record: SourceRef;
