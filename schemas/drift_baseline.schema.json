@@ -1,0 +1,217 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "condition",
+    "scope",
+    "methodVersion",
+    "minimumWords",
+    "windowWords",
+    "stepWords",
+    "calibration",
+    "rationale",
+    "sourceRecords",
+    "ranges"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "condition": {
+      "type": "object",
+      "required": [
+        "focalizerId",
+        "sceneFunction",
+        "secondaryFunctions",
+        "pressure",
+        "distance",
+        "epochId",
+        "storyTime",
+        "narrativeIndex"
+      ],
+      "properties": {
+        "focalizerId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sceneFunction": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "secondaryFunctions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "maxItems": 256
+        },
+        "pressure": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "distance": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "epochId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "storyTime": {
+          "type": "object",
+          "required": [
+            "earliest",
+            "latest",
+            "label"
+          ],
+          "properties": {
+            "earliest": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "latest": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 20000
+            }
+          },
+          "additionalProperties": false
+        },
+        "narrativeIndex": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "enum": [
+        "scene",
+        "rolling"
+      ]
+    },
+    "methodVersion": {
+      "type": "string",
+      "const": "surface-observations-v1"
+    },
+    "minimumWords": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 20000
+    },
+    "windowWords": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 5000
+    },
+    "stepWords": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5000
+    },
+    "calibration": {
+      "enum": [
+        "heuristic",
+        "pilot",
+        "human_calibrated"
+      ]
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "sourceRecords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "ranges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "metric",
+          "min",
+          "max"
+        ],
+        "properties": {
+          "metric": {
+            "enum": [
+              "sentence_mean",
+              "sentence_cv",
+              "paragraph_mean",
+              "paragraph_cv",
+              "mattr50",
+              "one_sentence_paragraph_share"
+            ]
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 6
+    }
+  },
+  "additionalProperties": false
+}

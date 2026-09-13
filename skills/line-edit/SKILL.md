@@ -1,21 +1,27 @@
 ---
 name: line-edit
-description: Sentence-level editing for prose quality, rhythm, and word choice
+description: "Evidence-led line revision with protected meaning and a keep-source option"
 ---
+# Line revision
 
-# Line Edit Skill
+Read the current source before editing. Identify exact evidence of a failed
+function, likely causal level, scope and paired regression risk. Repair state,
+scene purpose and focalization before surface phrasing. Do not schedule every
+pass for every paragraph or use a uniform final polish.
 
-This skill focuses on improving the prose itself: sentence-level rhythm, show vs. tell, passive voice, and phrasing.
+Preserve agency, modality, chronology, causation, emphasis, voice, implication,
+and all supported readings of protected ambiguity. Leaving a locked sentence
+unchanged is insufficient when added explanation elsewhere resolves it. Passive
+voice, repetition, explicit thought, fragments and difficult syntax may be apt.
 
-## Workflow
+In a managed project, use `literary-workflow` with `mode: review_existing`.
+It retains the source, reconstructs prose without the outline, chooses indicated
+passes, limits patches and compares versions. Only accepted proposals update
+prose and narrative state. Do not call direct line or passage tools as a bypass.
 
-1. **Read Scene**: Use `novel_scene_read` to load the current text.
-2. **Analyze Dialogue**: Run `analyze_dialogue` if useful; it loads prose for contextual assessment and does not compute tag statistics.
-3. **Refine Prose**: Look for opportunities to:
-   - Convert telling into showing.
-   - Vary sentence lengths and rhythm.
-   - Replace weak verbs and excessive adverbs with stronger verbs.
-   - Eliminate clichés.
-4. **Execute Edits**: 
-   - For small sentence swaps, use `edit_line`.
-   - In supervised work, use `edit_suggest` when author approval is needed. In an authorized autonomous run, apply justified changes directly while preserving meaning and prior prose.
+In legacy collaborative work, record the smallest justified suggestion using
+`edit_suggest`, supplying the current `expectedSourceHash`. Stale suggestions
+are rejected even when their quoted phrase still exists. The legacy editor is
+not a semantic-preservation certificate. Compare the revision with its source; keep the source or a tie when
+an edit merely increases polish. Recheck affected context, summaries and later
+causal dependencies after a substantive change. Report remaining uncertainty.

@@ -6,62 +6,15 @@ import fs from "node:fs";
 import { Type } from "typebox";
 import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { readText, writeText } from "./utils/platform.ts";
-import { getProject, refreshProject, orderedScenes } from "./novel-core.ts";
+import { refreshProject, type NovelProject } from "./novel-core.ts";
+import { exportManuscript, type ExportOptions } from "./llgf/manuscript.ts";
 
 function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function parseFrontmatter(content: string): { meta: Record<string, any>; body: string } {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!match) return { meta: {}, body: content };
-  const rawYaml = match[1];
-  const body = content.slice(match[0].length);
-  return { meta: {}, body };
-}
-
-export function compileManuscriptInternal(project: any) {
-  const compiledLines: string[] = [];
-
-  // Add Pandoc YAML metadata block
-  compiledLines.push("---");
-  compiledLines.push(`title: ${JSON.stringify(project.config.title)}`);
-  compiledLines.push(`author: ${JSON.stringify(project.config.author || "Unknown")}`);
-  compiledLines.push(`date: ${JSON.stringify(new Date().toISOString().split("T")[0])}`);
-  compiledLines.push("---");
-  compiledLines.push("");
-
-  const sortedScenes = orderedScenes(project);
-
-  let currentChapter = -1;
-
-  for (const scene of sortedScenes) {
-    if (scene.chapter !== currentChapter) {
-      if (project.config.format === "novel" || project.config.format === "novella") {
-        compiledLines.push(`\n# Chapter ${scene.chapter}\n`);
-      }
-      currentChapter = scene.chapter;
-    }
-
-    const content = readText(scene.filePath);
-    const { body } = parseFrontmatter(content);
-
-    if (scene.scene > 1) {
-      compiledLines.push(`\n* * *\n`);
-    }
-
-    compiledLines.push(body.trim());
-    compiledLines.push("");
-  }
-
-  const exportsDir = path.join(project.rootPath, "exports");
-  ensureDir(exportsDir);
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const outputPath = path.join(exportsDir, `manuscript-${timestamp}.md`);
-  
-  writeText(outputPath, compiledLines.join("\n"));
-  
-  return outputPath;
+export function compileManuscriptInternal(project: NovelProject, options: ExportOptions = {}) {
+  return exportManuscript(project, options).path;
 }
 
 export default function novelExportExtension(pi: any) {
@@ -113,16 +66,14 @@ export default function novelExportExtension(pi: any) {
   pi.registerTool({
     name: "compile_manuscript",
     label: "Compile Manuscript",
-    description: "Compile all scenes into a single ordered markdown file, sorting by canonical order and adding headings.",
-    parameters: Type.Object({}),
-    execute: async () => {
+    description: "Export a working draft or one immutable accepted snapshot, with a source manifest. Export does not publish or certify literary quality.",
+    parameters: Type.Object({ mode: Type.Optional(Type.Union([Type.Literal("working"), Type.Literal("accepted")])), requireComplete: Type.Optional(Type.Boolean()) }),
+    execute: async (_id: string, params: ExportOptions) => {
       const project = refreshProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded. Run /PNW-init first." }] };
 
-      const outputPath = await compileManuscriptInternal(project);
-      return {
-        content: [{ type: "text", text: `Compiled manuscript saved to: ${outputPath}` }]
-      };
+      const output = exportManuscript(project, params);
+      return { content: [{ type: "text", text: JSON.stringify(output, null, 2) }] };
     }
   });
 
@@ -157,8 +108,8 @@ export default function novelExportExtension(pi: any) {
 
   // ─── Command: /PNW-compile ────────────────────────────────────────────────
   pi.registerCommand("PNW-compile", {
-    description: "Compile manuscript into a single file and attempt export to DOCX",
-    handler: async (_args: string, _ctx: any) => {
+    description: "Compile working or accepted manuscript and attempt DOCX: /PNW-compile [working|accepted]",
+    handler: async (args: string, _ctx: any) => {
       const project = refreshProject();
       if (!project) {
         pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
@@ -166,7 +117,11 @@ export default function novelExportExtension(pi: any) {
       }
 
       pi.sendMessage({ customType: "markdown", content: "Compiling manuscript...", display: true });
-      const mdPath = await compileManuscriptInternal(project);
+      const mode = args.trim() || "working";
+      if (mode !== "working" && mode !== "accepted") throw new Error("Use /PNW-compile working or /PNW-compile accepted");
+      const output = exportManuscript(project, { mode });
+      const mdPath = output.path;
+      pi.sendMessage({ customType: "markdown", content: output.warnings.join("\n"), display: true });
       pi.sendMessage({ customType: "markdown", content: `Compiled manuscript saved to: ${mdPath}`, display: true });
 
       const docxPath = mdPath.replace(/\.md$/, ".docx");

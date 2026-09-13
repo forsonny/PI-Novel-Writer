@@ -1,0 +1,1135 @@
+[
+  {
+    "id": "A1",
+    "family": "A1",
+    "title": "Generic affect lexicon",
+    "definition": "Broad affect labels replace situated evidence or repeat emotion already made legible.",
+    "evidenceNeeded": "Emotion-term concordances plus redundant-evidence review.",
+    "firstIntervention": "Restore character-specific attention or action; retain useful direct naming.",
+    "pairedOvercorrection": "Affective opacity and a blanket ban on emotion.",
+    "routes": [
+      "exposition-inference",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF3"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "A2",
+    "family": "A2",
+    "title": "Adjectival varnish",
+    "definition": "Evaluative modifiers decorate generic objects and actions without changing interpretation.",
+    "evidenceNeeded": "Modifier concordances and a deletion test for changed inference.",
+    "firstIntervention": "Repair weak selection or relations before substituting fancy adjectives.",
+    "pairedOvercorrection": "Bald literalism or forced specificity.",
+    "routes": [
+      "imagery-sensory",
+      "line-integrity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "A3",
+    "family": "A3",
+    "title": "Synonym cycling",
+    "definition": "Near-synonym rotation conceals repeated information or destabilizes a natural referent.",
+    "evidenceNeeded": "Coreference chains and repeated propositions despite changed labels.",
+    "firstIntervention": "Retain natural naming; cut duplicated informational work.",
+    "pairedOvercorrection": "Monotonous repetition or damaged reference.",
+    "routes": [
+      "exposition-inference",
+      "line-integrity"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "A4",
+    "family": "A4",
+    "title": "Connective defaulting",
+    "definition": "Connectives repeatedly announce relations already supplied by order, syntax or situation.",
+    "evidenceNeeded": "Connective rates by scene function and local relation analysis.",
+    "firstIntervention": "Remove only redundant signals; preserve necessary temporal and logical links.",
+    "pairedOvercorrection": "Choppy or falsely ambiguous transitions.",
+    "routes": [
+      "exposition-inference",
+      "rhythm-paragraph"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "A5",
+    "family": "A5",
+    "title": "Faux-archaic register",
+    "definition": "Scattered archaisms signal fantasy without a coherent social or narratorial register.",
+    "evidenceNeeded": "Register concordances interpreted against social and narratorial design.",
+    "firstIntervention": "Ground language in institutions and relationships; permit intentional archaism.",
+    "pairedOvercorrection": "Rigid anachronism policing.",
+    "routes": [
+      "voice-fidelity",
+      "line-integrity"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF6"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "A6",
+    "family": "A6",
+    "title": "Cliché image pool",
+    "definition": "Highly available images or idioms substitute for an apt, viewpoint-specific relation.",
+    "evidenceNeeded": "Phrase matches are screening only; inspect viewpoint and image function.",
+    "firstIntervention": "Use a situated relation or plain language; do not chase rarity.",
+    "pairedOvercorrection": "Strained novelty and incoherent images.",
+    "routes": [
+      "imagery-sensory"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF3"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "B1",
+    "family": "B1",
+    "title": "Sentence-band compression",
+    "definition": "Cadence clusters within a narrow band despite changes in attention and scene function.",
+    "evidenceNeeded": "Length and clause distributions conditioned on scene function.",
+    "firstIntervention": "Change sentence function and relations before manipulating length.",
+    "pairedOvercorrection": "Random fragments or unreadable periodic sentences.",
+    "routes": [
+      "rhythm-paragraph"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF5",
+      "CF6"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "B2",
+    "family": "B2",
+    "title": "Tricolon habit",
+    "definition": "Three-part constructions recur regardless of the content's conceptual grouping.",
+    "evidenceNeeded": "Syntactic/rhetorical triad candidates, not comma counts alone.",
+    "firstIntervention": "Keep motivated triads; change conceptual grouping elsewhere.",
+    "pairedOvercorrection": "Mechanical avoidance of every three-part structure.",
+    "routes": [
+      "rhythm-paragraph"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "B3",
+    "family": "B3",
+    "title": "Balanced-clause compulsion",
+    "definition": "Balanced antitheses become a default even where ideas, power or consciousness are unequal.",
+    "evidenceNeeded": "Parallelism and antithesis concordances with rhetorical context.",
+    "firstIntervention": "Represent unequal ideas unequally when the scene warrants it.",
+    "pairedOvercorrection": "Shapeless coordination and forced informality.",
+    "routes": [
+      "rhythm-paragraph"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "B4",
+    "family": "B4",
+    "title": "Participial tail habit",
+    "definition": "Repeated participial endings append mood, consequence or interpretation without needed work.",
+    "evidenceNeeded": "Sentence-final participial candidates plus semantic-role review.",
+    "firstIntervention": "Remove explanatory tails or restore actual simultaneity/causation.",
+    "pairedOvercorrection": "Uniform abrupt finite sentences.",
+    "routes": [
+      "rhythm-paragraph",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "B5",
+    "family": "B5",
+    "title": "Uniform sentence closure",
+    "definition": "Closures repeatedly give the same terminal stress or abstract significance.",
+    "evidenceNeeded": "Terminal constructions and semantic fields across eligible windows.",
+    "firstIntervention": "Vary closure according to attention, action, and paragraph purpose.",
+    "pairedOvercorrection": "Obscure endings and unresolved referents.",
+    "routes": [
+      "rhythm-paragraph"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "B6",
+    "family": "B6",
+    "title": "Pseudo-literary fragmentation",
+    "definition": "Fragments advertise intensity or irregularity without a cognitive or rhetorical function.",
+    "evidenceNeeded": "Fragment runs and one-sentence paragraphs by function.",
+    "firstIntervention": "Restore grammatical relations where fragments add no useful force.",
+    "pairedOvercorrection": "Overregularization that removes genuine rupture.",
+    "routes": [
+      "rhythm-paragraph",
+      "voice-fidelity"
+    ],
+    "familyCauseCandidates": [
+      "CF6",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "C1",
+    "family": "C1",
+    "title": "Semantic restatement",
+    "definition": "A proposition recurs in paraphrase without perspective, consequence or purposeful emphasis.",
+    "evidenceNeeded": "Similarity screens followed by perspective, consequence, and emphasis analysis.",
+    "firstIntervention": "Keep the strongest realization or make repetition change its function.",
+    "pairedOvercorrection": "Loss of incantation, clarification, or emphasis.",
+    "routes": [
+      "exposition-inference",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "C2",
+    "family": "C2",
+    "title": "Interpretive aftercare",
+    "definition": "Narration immediately explains an implication already enacted by image, action or speech.",
+    "evidenceNeeded": "Exact gloss span plus the earlier evidence that licenses inference.",
+    "firstIntervention": "Remove surplus interpretation without deleting necessary understanding.",
+    "pairedOvercorrection": "False subtlety and missing causality.",
+    "routes": [
+      "exposition-inference",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF4",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "C3",
+    "family": "C3",
+    "title": "Motivation accounting",
+    "definition": "Narration accounts for motives so exhaustively that uncertainty and contradiction disappear.",
+    "evidenceNeeded": "Motive explanations compared with visible actions and viewpoint access.",
+    "firstIntervention": "Retain inaccessible necessary motives; leave supported inference to readers.",
+    "pairedOvercorrection": "Opaque or arbitrary behavior.",
+    "routes": [
+      "exposition-inference",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF3",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "C4",
+    "family": "C4",
+    "title": "Expository packetization",
+    "definition": "Lore arrives as a self-contained explanatory packet detached from the present scene.",
+    "evidenceNeeded": "Lore-block candidates compared with current decisions and reader knowledge.",
+    "firstIntervention": "Change the release mechanism or timing; make relevant rules consequential.",
+    "pairedOvercorrection": "Confusing world rules and decorative showing.",
+    "routes": [
+      "scene-function",
+      "exposition-inference"
+    ],
+    "familyCauseCandidates": [
+      "CF3",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "C5",
+    "family": "C5",
+    "title": "Reader-orientation surplus",
+    "definition": "Speakers, location, stakes or history are repeatedly restated beyond plausible reader need.",
+    "evidenceNeeded": "Recaps and repeated referents evaluated against narrative order and distance.",
+    "firstIntervention": "Remove surplus recaps; preserve legitimate reorientation after a gap.",
+    "pairedOvercorrection": "Unclear reference or inaccessible callbacks.",
+    "routes": [
+      "exposition-inference"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF5"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "C6",
+    "family": "C6",
+    "title": "Paragraph thesis-and-closure template",
+    "definition": "Paragraphs repeat a thesis, evidence and interpretive seal instead of following attention.",
+    "evidenceNeeded": "Paragraph-function sequences across several scenes.",
+    "firstIntervention": "Rebuild attention and discourse units; repair planning templates when causal.",
+    "pairedOvercorrection": "Chaotic paragraphing and arbitrary variety.",
+    "routes": [
+      "scene-function",
+      "rhythm-paragraph"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF4",
+      "CF6"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "D1",
+    "family": "D1",
+    "title": "Mini-arc compulsion",
+    "definition": "Every unit is forced into a complete miniature arc despite a need for delay or residue.",
+    "evidenceNeeded": "Closure and scene-shape labels across a sequence, not an isolated scene.",
+    "firstIntervention": "Allow aftermath, process, interruption, residue, and earned resolution.",
+    "pairedOvercorrection": "No meaningful scene function or arbitrary cliffhangers.",
+    "routes": [
+      "scene-function"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF4",
+      "CF6"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "D2",
+    "family": "D2",
+    "title": "Teleological visibility",
+    "definition": "Details and character actions reveal the outline too conveniently, reducing contingency.",
+    "evidenceNeeded": "Convenient questions, obvious setups, and counterfactual causal review.",
+    "firstIntervention": "Plan obligations with alternatives; allow contingent, non-instrumental perception.",
+    "pairedOvercorrection": "Shapeless improvisation or irrelevant padding.",
+    "routes": [
+      "scene-function"
+    ],
+    "familyCauseCandidates": [
+      "CF4",
+      "CF6"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "D3",
+    "family": "D3",
+    "title": "Stakes inflation",
+    "definition": "Consequence is made larger or more catastrophic instead of more particular and meaningful.",
+    "evidenceNeeded": "Pressure and consequence scope across adjacent scenes.",
+    "firstIntervention": "Deepen specific social, ethical, or personal consequence rather than magnitude.",
+    "pairedOvercorrection": "An underpowered climax or false flatness.",
+    "routes": [
+      "scene-function"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF6"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "D4",
+    "family": "D4",
+    "title": "Atmosphere substitution",
+    "definition": "Generic atmosphere replaces the causal, social or experiential work intended for the scene.",
+    "evidenceNeeded": "Atmospheric passages compared with intended experiential and causal work.",
+    "firstIntervention": "Repair absent action or relation only where required; make setting consequential.",
+    "pairedOvercorrection": "Plot-only prose and loss of environmental presence.",
+    "routes": [
+      "scene-function",
+      "imagery-sensory"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF3"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "D5",
+    "family": "D5",
+    "title": "Pacing homogeneity",
+    "definition": "Scenes receive similar space, beat density or intensity irrespective of their functions.",
+    "evidenceNeeded": "Scene-space allocations, modes, beat locations, and chapter contrast.",
+    "firstIntervention": "Allocate duration according to function, not a common scene template.",
+    "pairedOvercorrection": "Erratic pacing or conspicuous alternating patterns.",
+    "routes": [
+      "scene-function",
+      "rhythm-paragraph"
+    ],
+    "familyCauseCandidates": [
+      "CF4",
+      "CF5",
+      "CF6"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "D6",
+    "family": "D6",
+    "title": "Neat moral or thematic closure",
+    "definition": "Local endings resolve emotion, theme or uncertainty more completely than the larger form needs.",
+    "evidenceNeeded": "Scene-end interpretations and closure types across chapters.",
+    "firstIntervention": "Remove the surplus seal; preserve resolutions required by the work.",
+    "pairedOvercorrection": "Refusal to conclude or compulsory cliffhangers.",
+    "routes": [
+      "scene-function",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF4",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "E1",
+    "family": "E1",
+    "title": "Dialogue voice collapse",
+    "definition": "Speakers and focalizers converge in syntax, diction, humor, explicitness and reasoning.",
+    "evidenceNeeded": "Name-masked speaker comparisons with matched social situations.",
+    "firstIntervention": "Restore pragmatic, perceptual, and knowledge differences.",
+    "pairedOvercorrection": "Catchphrases, accent caricature, or stereotyping.",
+    "routes": [
+      "character-dialogue",
+      "voice-fidelity"
+    ],
+    "familyCauseCandidates": [
+      "CF3",
+      "CF5",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "E2",
+    "family": "E2",
+    "title": "Symmetrical banter",
+    "definition": "Matched witty turns ignore power, knowledge, emotional state and unequal conversational uptake.",
+    "evidenceNeeded": "Turn functions, uptake, length, and power relations.",
+    "firstIntervention": "Permit unequal competence, timing, failed humor, and topic control.",
+    "pairedOvercorrection": "Random interruptions and artificially broken speech.",
+    "routes": [
+      "character-dialogue"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "E3",
+    "family": "E3",
+    "title": "Nonresponse intolerance",
+    "definition": "Every bid receives an explicit verbal answer, suppressing motivated silence or evasion.",
+    "evidenceNeeded": "Question/response sequences, silence, action responses, and unresolved bids.",
+    "firstIntervention": "Restore motivated evasion or nonresponse and carry its consequences.",
+    "pairedOvercorrection": "Universal evasiveness or incoherent conversation.",
+    "routes": [
+      "character-dialogue"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "E4",
+    "family": "E4",
+    "title": "Explicit affect accounting",
+    "definition": "Narration inventories feelings already available from behavior or situational evidence.",
+    "evidenceNeeded": "Named mixed emotions compared with enacted evidence and narrator distance.",
+    "firstIntervention": "Use precise evidence or necessary naming, not inventories by default.",
+    "pairedOvercorrection": "Emotional blankness or prohibition of useful feeling words.",
+    "routes": [
+      "focalization-distance",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF4",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "E5",
+    "family": "E4",
+    "title": "Thought paraphrase",
+    "definition": "An interior thought restates the information just supplied by action, dialogue or another thought.",
+    "evidenceNeeded": "Thought/action/dialogue pairs that repeat the same information.",
+    "firstIntervention": "Remove duplicate interior explanation or make it complicate the action.",
+    "pairedOvercorrection": "Loss of necessary interior access.",
+    "routes": [
+      "focalization-distance",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF4",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "E6",
+    "family": "E5",
+    "title": "Universal self-awareness",
+    "definition": "Self-knowledge is uniformly articulate regardless of a character's history, concepts or stress.",
+    "evidenceNeeded": "Insight compared with character history, concepts, stress, and development.",
+    "firstIntervention": "Preserve misbelief and partial understanding; allow earned insight.",
+    "pairedOvercorrection": "Romanticized inarticulacy or blocked growth.",
+    "routes": [
+      "focalization-distance",
+      "character-dialogue"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF3"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "E7",
+    "family": "E6",
+    "title": "Character reset",
+    "definition": "Accrued experience, injury, decisions or adaptations reset without an intentional relapse.",
+    "evidenceNeeded": "Accepted character-state trajectory and recent experiential consequences.",
+    "firstIntervention": "Restore accumulated change; distinguish an intentional relapse from reset.",
+    "pairedOvercorrection": "Rigid characters who cannot regress or change.",
+    "routes": [
+      "state-repair",
+      "focalization-distance"
+    ],
+    "familyCauseCandidates": [
+      "CF3",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "E8",
+    "family": "E6",
+    "title": "Focalization leakage",
+    "definition": "Perception, knowledge, diction or judgments exceed the active focal or narratorial access.",
+    "evidenceNeeded": "Narrator access policy, holder-specific knowledge, and perception availability.",
+    "firstIntervention": "Repair the specific access violation or license an intended narratorial transition.",
+    "pairedOvercorrection": "Permanent close-POV lock or forbidden inference.",
+    "routes": [
+      "state-repair",
+      "focalization-distance"
+    ],
+    "familyCauseCandidates": [
+      "CF3",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "F1",
+    "family": "F1",
+    "title": "Sensory checklist",
+    "definition": "Sensory modalities are filled as a checklist rather than selected by body, task and attention.",
+    "evidenceNeeded": "Modality sequences interpreted through task, body, and expertise.",
+    "firstIntervention": "Select useful sensory evidence rather than completing an inventory.",
+    "pairedOvercorrection": "Sensory austerity or a new visual-only default.",
+    "routes": [
+      "imagery-sensory"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF6"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "F2",
+    "family": "F2",
+    "title": "Cinematic default",
+    "definition": "An external-camera sequence replaces embodied, conceptual or linguistic mediation without license.",
+    "evidenceNeeded": "External-camera framing compared with the declared narrator/focalizer.",
+    "firstIntervention": "Restore embodied and conceptual selection when appropriate.",
+    "pairedOvercorrection": "Excessive interiority and unclear physical space.",
+    "routes": [
+      "focalization-distance",
+      "imagery-sensory"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF3"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "F3",
+    "family": "F3",
+    "title": "Metaphor stacking",
+    "definition": "Comparisons accumulate around a subject without useful development or hierarchy.",
+    "evidenceNeeded": "Figure candidates and source-domain sequences with human aptness review.",
+    "firstIntervention": "Develop, transform, or remove a relation rather than adding more comparisons.",
+    "pairedOvercorrection": "Figurative austerity or single-domain monotony.",
+    "routes": [
+      "imagery-sensory"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF6",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "F4",
+    "family": "F4",
+    "title": "Image-family incoherence",
+    "definition": "Image domains conflict in context without productive imaginative or cultural logic.",
+    "evidenceNeeded": "Image entailments and source-domain relationships.",
+    "firstIntervention": "Repair unproductive conflict while preserving surreal or purposeful tension.",
+    "pairedOvercorrection": "Overliteral correction of legitimate figurative language.",
+    "routes": [
+      "imagery-sensory"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF3",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "F5",
+    "family": "F5",
+    "title": "Decorative specificity",
+    "definition": "Precision decorates a scene without available knowledge or perceptual, social or narrative function.",
+    "evidenceNeeded": "Specific details tested for availability, perception, and function.",
+    "firstIntervention": "Keep detail that alters inference or experience; remove false precision.",
+    "pairedOvercorrection": "Generic description or underdeveloped settings.",
+    "routes": [
+      "focalization-distance",
+      "imagery-sensory"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "F6",
+    "family": "F6",
+    "title": "Mood mirroring",
+    "definition": "Environment routinely mirrors emotion, narrowing possible relations between person and world.",
+    "evidenceNeeded": "Environmental symbolism examined across functions and viewpoints.",
+    "firstIntervention": "Allow indifference and counterpoint; keep earned mood correspondence.",
+    "pairedOvercorrection": "Arbitrary anti-symbolism or affectless surroundings.",
+    "routes": [
+      "imagery-sensory"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "F7",
+    "family": "F6",
+    "title": "Wonder inflation",
+    "definition": "Superlatives and ineffability substitute for particular consequences of the unfamiliar.",
+    "evidenceNeeded": "Superlatives and novelty language compared with familiarity and consequence.",
+    "firstIntervention": "Ground wonder in material, cultural, or personal consequences.",
+    "pairedOvercorrection": "Making all wonders banal.",
+    "routes": [
+      "imagery-sensory",
+      "voice-fidelity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "F8",
+    "family": "F6",
+    "title": "Metaphor explanation",
+    "definition": "A metaphor is immediately paraphrased into an explanation that removes interpretive work.",
+    "evidenceNeeded": "Figure and explanatory gloss evaluated as a linked pair.",
+    "firstIntervention": "Remove redundant explanation when the image already supports inference.",
+    "pairedOvercorrection": "Opaque imagery or prohibition of an explanatory narrator.",
+    "routes": [
+      "imagery-sensory",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF4"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "G1",
+    "family": "G1",
+    "title": "Context echo",
+    "definition": "Retrieved or recent language echoes because of context proximity rather than changed function.",
+    "evidenceNeeded": "Draft-to-context and draft-to-anchor exact/fuzzy overlap with provenance.",
+    "firstIntervention": "Repair retrieval and representational contamination before editing echoes.",
+    "pairedOvercorrection": "Loss of intentional recurrence or necessary terminology.",
+    "routes": [
+      "context-repair",
+      "repetition-motif"
+    ],
+    "familyCauseCandidates": [
+      "CF5",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "G2",
+    "family": "G1",
+    "title": "Keyphrase accumulation",
+    "definition": "A once-effective phrase accumulates across units until it becomes an unexamined habit.",
+    "evidenceNeeded": "Phrase dispersion, recurrence, and concentration over distant chapters.",
+    "firstIntervention": "Reduce unmotivated repetitions; preserve specific purposeful callbacks.",
+    "pairedOvercorrection": "Eliminating a valid refrain.",
+    "routes": [
+      "context-repair",
+      "repetition-motif"
+    ],
+    "familyCauseCandidates": [
+      "CF5",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "G3",
+    "family": "G2",
+    "title": "Motif overannouncement",
+    "definition": "A motif recurs with an unchanged meaning or announced symbolic explanation.",
+    "evidenceNeeded": "Occurrence function and explicit symbolic glosses, not keywords alone.",
+    "firstIntervention": "Change or omit motif activation; preserve transformation and backgrounding.",
+    "pairedOvercorrection": "Over-subtle motifs that lose thematic binding.",
+    "routes": [
+      "context-repair",
+      "repetition-motif"
+    ],
+    "familyCauseCandidates": [
+      "CF4",
+      "CF5",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "G4",
+    "family": "G2",
+    "title": "Motif evaporation",
+    "definition": "A salient motif disappears without transformation or an intentional period of dormancy.",
+    "evidenceNeeded": "Salient motif history and transformation opportunities across an arc.",
+    "firstIntervention": "Reopen a meaningful opportunity or explicitly retire the motif.",
+    "pairedOvercorrection": "Compulsory reminders and motif bureaucracy.",
+    "routes": [
+      "plan-repair",
+      "repetition-motif"
+    ],
+    "familyCauseCandidates": [
+      "CF4",
+      "CF5",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "G5",
+    "family": "G3",
+    "title": "Promise evaporation",
+    "definition": "A salient question, vow, threat, debt or setup loses its trajectory without a designed decision.",
+    "evidenceNeeded": "Promise provenance, salience, preparation, and intended resolution scope.",
+    "firstIntervention": "Repair the causal opportunity, payoff, or authorized nonresolution.",
+    "pairedOvercorrection": "Checklist plotting and mechanical callbacks.",
+    "routes": [
+      "plan-repair",
+      "scene-function"
+    ],
+    "familyCauseCandidates": [
+      "CF3",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "G6",
+    "family": "G4",
+    "title": "Continuity amnesia",
+    "definition": "Distant facts, relationships, resource custody or character knowledge are forgotten or contradicted.",
+    "evidenceNeeded": "State facts, event ordering, custody, capabilities, knowledge, and relationships.",
+    "firstIntervention": "Repair the earliest incorrect state or missing evidence; revalidate dependents.",
+    "pairedOvercorrection": "Flattening deception, memory error, or legitimate change.",
+    "routes": [
+      "state-repair"
+    ],
+    "familyCauseCandidates": [
+      "CF3",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "G7",
+    "family": "G5",
+    "title": "Escalatory ratchet",
+    "definition": "Later development defaults to greater spectacle or threat because contrast and consequence are neglected.",
+    "evidenceNeeded": "Stakes and pressure trajectories across arcs.",
+    "firstIntervention": "Develop depth, cost, counterplay, and relationships; allow low-pressure chapters.",
+    "pairedOvercorrection": "Static middles or anticlimax.",
+    "routes": [
+      "plan-repair",
+      "scene-function"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF4",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "G8",
+    "family": "G6",
+    "title": "Default-prose convergence",
+    "definition": "Distinctive, condition-responsive voice erodes toward generic polished prose across the manuscript.",
+    "evidenceNeeded": "Condition-matched drift, distal comparisons, and reader evidence.",
+    "firstIntervention": "Recompile context/voice and repair the smallest genuinely damaged spans.",
+    "pairedOvercorrection": "Freezing the opening voice or copying anchors.",
+    "routes": [
+      "context-repair",
+      "voice-fidelity"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF2",
+      "CF3",
+      "CF4",
+      "CF5",
+      "CF6",
+      "CF7",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "H1",
+    "family": "H1",
+    "title": "Varnish without structural repair",
+    "definition": "Editing increases elegance or explicitness without repairing the diagnosed literary function.",
+    "evidenceNeeded": "Before/after diff tied to the actual diagnosed function.",
+    "firstIntervention": "Reject unrelated polish; repair the missing function or keep the source.",
+    "pairedOvercorrection": "Preserving real errors merely because revision is risky.",
+    "routes": [
+      "revision-comparator"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "H2",
+    "family": "H2",
+    "title": "Thesaurus scar",
+    "definition": "Word substitution damages collocation, register, reference or character-natural vocabulary.",
+    "evidenceNeeded": "Changed words checked for collocation, register, and speaker plausibility.",
+    "firstIntervention": "Restore exact natural language; change the relation if the idea is repetitive.",
+    "pairedOvercorrection": "Lexical timidity or simplistic diction.",
+    "routes": [
+      "line-integrity"
+    ],
+    "familyCauseCandidates": [
+      "CF2",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "H3",
+    "family": "H3",
+    "title": "Local optimization, global regression",
+    "definition": "A local edit damages another span's causality, setup, motif, pacing, knowledge or voice.",
+    "evidenceNeeded": "Changed spans and their causal, promise, motif, and state dependents.",
+    "firstIntervention": "Revalidate affected evidence; revert or branch when gains do not survive.",
+    "pairedOvercorrection": "Treating every dependency as a reason never to edit.",
+    "routes": [
+      "regression-validation"
+    ],
+    "familyCauseCandidates": [
+      "CF3",
+      "CF7",
+      "CF8"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "H4",
+    "family": "H4",
+    "title": "Ambiguity deletion",
+    "definition": "Revision removes warranted ambiguity or subtext by settling motives, meanings or references.",
+    "evidenceNeeded": "Protected interpretation sets and source/revision entailment review.",
+    "firstIntervention": "Restore supported alternatives; check added explanations outside locked text.",
+    "pairedOvercorrection": "Protecting unintelligibility under the name of art.",
+    "routes": [
+      "compression-ambiguity",
+      "regression-validation"
+    ],
+    "familyCauseCandidates": [
+      "CF1",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "H5",
+    "family": "H5",
+    "title": "Overcompression",
+    "definition": "Compression removes necessary causal, emotional or spatial bridges rather than redundant explanation.",
+    "evidenceNeeded": "Reader-oriented reconstruction and lost causal/spatial/emotional bridges.",
+    "firstIntervention": "Restore the minimum needed bridge or move information instead of deleting it.",
+    "pairedOvercorrection": "Interpretive aftercare and bloated exposition.",
+    "routes": [
+      "exposition-inference",
+      "compression-ambiguity"
+    ],
+    "familyCauseCandidates": [
+      "CF6",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "H6",
+    "family": "H6",
+    "title": "Artificial roughness",
+    "definition": "Editing inserts awkwardness or noise solely to look less regular, without scene function.",
+    "evidenceNeeded": "Markedness changes after edits interpreted against scene function.",
+    "firstIntervention": "Remove forced irregularity; license plain passages.",
+    "pairedOvercorrection": "Overregularization and loss of genuine rupture.",
+    "routes": [
+      "rhythm-paragraph",
+      "voice-fidelity"
+    ],
+    "familyCauseCandidates": [
+      "CF5",
+      "CF6",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "H7",
+    "family": "H6",
+    "title": "Voice caricature",
+    "definition": "Distinctive features are intensified until every paragraph conspicuously performs the voice.",
+    "evidenceNeeded": "Concentration in a few devices plus cross-premise reader recognition.",
+    "firstIntervention": "Widen permissible variation and reduce constantly performed markers.",
+    "pairedOvercorrection": "Loss of identity support and generic convergence.",
+    "routes": [
+      "voice-fidelity"
+    ],
+    "familyCauseCandidates": [
+      "CF5",
+      "CF6",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  },
+  {
+    "id": "H8",
+    "family": "H6",
+    "title": "Anchor copying",
+    "definition": "Anchor wording, images or distinctive architecture are copied too closely to preserve independent realization.",
+    "evidenceNeeded": "Exact/fuzzy phrase, image, and distinctive structural overlap with anchors.",
+    "firstIntervention": "Remove excessive dependence and redraft independently when needed.",
+    "pairedOvercorrection": "Removing all useful stylistic evidence.",
+    "routes": [
+      "originality-validation",
+      "voice-fidelity"
+    ],
+    "familyCauseCandidates": [
+      "CF5",
+      "CF6",
+      "CF7"
+    ],
+    "causeStatus": "hypotheses_not_observed_causes",
+    "noActionRule": "Preserve an intentional effective form. Without evidence of displaced work, report licensed, uncertain or unassessed rather than rewriting.",
+    "automaticRejection": false
+  }
+]

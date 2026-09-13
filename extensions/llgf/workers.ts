@@ -7,9 +7,9 @@ import { estimateTokens } from './voice.ts';
 import type { ContextPacket, LiteraryRole } from './context.ts';
 
 export const WORKER_PROMPT_VERSION = 'llgf-worker-v1';
-export const workerFunctions = ['sketch', 'draft', 'extract', 'diagnose', 'validate', 'revise', 'compare', 'audit'] as const;
+export const workerFunctions = ['sketch', 'draft', 'extract', 'diagnose', 'validate', 'revise', 'compare', 'audit', 'select', 'read'] as const;
 export type WorkerFunction = typeof workerFunctions[number];
-const roles: Record<WorkerFunction, LiteraryRole> = { sketch: 'planner', draft: 'drafter', extract: 'validator', diagnose: 'critic', validate: 'validator', revise: 'reviser', compare: 'critic', audit: 'critic' };
+const roles: Record<WorkerFunction, LiteraryRole> = { sketch: 'planner', draft: 'drafter', extract: 'validator', diagnose: 'critic', validate: 'validator', revise: 'reviser', compare: 'critic', audit: 'critic', select: 'critic', read: 'critic' };
 const instructions: Record<WorkerFunction, string> = {
   sketch: 'Plan causal and attentional moves, speech acts, nonresponses, and acceptable exits, not polished prose. Keep protected unknowns and a place for compatible discovery. Do not force quiet scenes into conflict or climax.',
   draft: 'Draft only the requested bounded unit. Realize the selected function without completing later obligations. Use available viewpoint, material and social detail selectively. Plain sentences are allowed. New compatible creative details are proposals, not pre-existing canon. Keep prose and notes in separate fields.',
@@ -18,6 +18,8 @@ const instructions: Record<WorkerFunction, string> = {
   validate: 'Check facts, causality, focalization, chronology, resources, knowledge, and contract completion. Distinguish confirmed error from unreliable narration, contested belief, deliberate mystery and extraction uncertainty. Never rewrite the text or fill missing evidence from a plan.',
   revise: 'Repair only the supplied diagnosis in its allowed span and change budget. Preserve agency, modality, chronology, causation, voice and all protected interpretations. Do not resolve silence by adding an explanation elsewhere. Return keep-source when no justified improvement is available.',
   compare: 'Compare the anonymized versions without assuming the newer one is better. Judge the diagnosed function, paired risks and every protected property. Prefer a tie or source when evidence is insufficient. Report semantic changes, unrelated polish and regressions. This is model assessment, not human evaluation.',
+  read: 'Read only the supplied prose. Reconstruct what it establishes without scene plans, a story bible, intended meaning or future information. Preserve the distinction between fact, belief, inference and uncertainty. Cite current prose. This is a model cold reconstruction, not a human cold read.',
+  select: 'Select among functionally different candidates using the scene obligations, knowledge permissions and active voice. Do not select by fluency alone or combine candidates. Cite exact evidence in the chosen candidate. Return null when none performs the required function. No human evaluation is implied.',
   audit: 'Inspect the supplied sequence at its declared scale and relative to available distal evidence. Report dependencies, recurring scene/paragraph shapes, promises, motifs, contrast, conditional voice, and future-control repairs. Do not request a uniform rewrite. Missing coverage is unknown, not a clean bill of health.',
 };
 export function roleFor(task: WorkerFunction): LiteraryRole {

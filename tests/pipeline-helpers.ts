@@ -29,7 +29,8 @@ export function mockPipelineHost(id: string, violate = false, beforeResponse?: (
     const evidence = [{ sceneId: id, textHash: h, start: 0, end: input.localProse.length, quote: input.localProse, offsetUnit: 'utf16' }];
     const role = input.role;
     let out: unknown;
-    if (role === 'planner') out = { moves: ['Wait'], rationale: 'Quiet continuation', riskPatternIds: [] };
+    if (context.systemPrompt.includes('Read only the supplied prose')) out = { reconstruction: 'An unanswered wait', questions: ['Who is behind the door?'], uncertainties: [], evidence };
+    else if (role === 'planner') out = { moves: ['Wait'], rationale: 'Quiet continuation', riskPatternIds: [] };
     else if (role === 'drafter') out = { prose: 'A hinge creaked. She stayed.', done: true, uncertainties: [] };
     else if (role === 'critic') out = { schemaVersion: 1, sceneId: id, textHash: h, taxonomyVersion: TAXONOMY_VERSION, assessedPatternIds: ['C2'], findings: [], limitations: ['Fixture model assessment only'] };
     else if (context.systemPrompt.includes('Extract proposed epistemic')) out = { propositions: [], uncertainties: [] };

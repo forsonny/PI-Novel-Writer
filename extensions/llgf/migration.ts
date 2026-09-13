@@ -38,11 +38,14 @@ export function mergeGuidance(base: string | null, current: string, incoming: st
   };
   const b = sections(base), c = sections(current), n = sections(incoming), conflicts: string[] = [];
   const order = [...c.keys(), ...n.keys()].filter((key, i, all) => all.indexOf(key) === i);
+  // Boundary blank lines and platform newlines do not constitute an authored
+  // section edit. Compare them canonically, but preserve the selected raw text.
+  const equalSection = (a: string | undefined, b: string | undefined) => a === b || (a !== undefined && b !== undefined && a.replaceAll('\r\n', '\n').replace(/\n+$/, '\n') === b.replaceAll('\r\n', '\n').replace(/\n+$/, '\n'));
   const merged: string[] = [];
   for (const key of order) {
     const old = b.get(key), ours = c.get(key), theirs = n.get(key);
-    if (ours === theirs || theirs === old) { if (ours !== undefined) merged.push(ours); }
-    else if (ours === old) { if (theirs !== undefined) merged.push(theirs); }
+    if (equalSection(ours, theirs) || equalSection(theirs, old)) { if (ours !== undefined) merged.push(ours); }
+    else if (equalSection(ours, old)) { if (theirs !== undefined) merged.push(theirs); }
     else { conflicts.push(key); if (ours !== undefined) merged.push(ours); }
   }
   return { text: merged.join(''), conflicts };

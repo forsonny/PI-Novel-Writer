@@ -5,3 +5,10 @@ node_modules/
 Thumbs.db
 test-runs/
 .pi-metacore-project.json
+
+# Private manuscript/control data and generated release artifacts
+.pnw/
+.pnw-dev/
+.pi/
+*.tgz
+source-snapshot.tar

@@ -1,0 +1,5 @@
+# Change 22: risk-conditioned functional candidates
+
+Generation now compiles a small risk watch into the active Voice Packet, including after an explicit resume. The sketch may forecast up to five known patterns, but it no longer receives the entire pattern inventory as a drafting instruction. Diagnosis retains its broader taxonomy. The default draft remains single-candidate. An explicit generation policy may request two to four different functional strategies for an elevated-risk first move; later ordinary units remain single-candidate. A separate isolated selector must cite the chosen candidate and can reject all alternatives. Identical outputs cannot masquerade as diversity. All alternatives, selection evidence and provider calls are retained.
+
+Review: syntax, strict TypeScript and 104 tests pass. Tests cover risk and unit gating, invalid/duplicate strategies, refusal to select without evidence and a complete seven-call mock pipeline retaining the rejected alternative. Candidate quality remains a model assessment. More inference has not been demonstrated to improve literature; budgets record the added cost rather than conceal it.

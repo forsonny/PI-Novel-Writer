@@ -1,0 +1,7 @@
+# Change 27: source-bound chapter, arc, and manuscript audits
+
+The read-only inspector reports accepted coverage, working-file divergence, stale evidence, promise and motif histories, and conditional drift observations. Optional model review requires an existing session allowance, reserves a durable call budget, and sends a complete, explicitly bounded sequence packet in an isolated call. It stores an evidence-linked assessment without modifying prose. No human reading is inferred.
+
+Review: syntax checks, strict typechecking, and 121 regression tests pass locally. New tests cover full input budget rejection, scoped evidence requirements, model transmission permission, unchanged prose, and invalidation after manual edits or newly added scene files without a host reload. Review found that trusting the host's cached scene inventory could miss new files; preparation now scans a fresh project snapshot without changing the loaded project. A test's expected word count was corrected from eight to seven after checking the fixture text.
+
+Limits: long sequences that cannot fit are rejected rather than silently sampled. Proxy observations are not literary judgments. The current worker performs model review, not an independent human continuous read; externally calibrated reference data is not bundled. These tests ran on Node 22.16.0; the supported 22.19.0 host and other operating systems need CI confirmation for these local changes.

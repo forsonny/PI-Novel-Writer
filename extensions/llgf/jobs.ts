@@ -5,7 +5,7 @@ import { projectPath } from '../utils/safety.ts';
 import { writeExact } from './io.ts';
 import { newId, objectHash } from './version.ts';
 import type { WorkerCall, WorkerPermit } from './workers.ts';
-export const BudgetSchema = Strict({ maxCalls: Type.Integer({ minimum: 1, maximum: 10000 }), maxReservedTokens: Type.Integer({ minimum: 1 }), maxCost: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]), maxRevisions: Type.Integer({ minimum: 0, maximum: 10 }) });
+export const BudgetSchema = Strict({ maxCalls: Type.Integer({ minimum: 1, maximum: 10000 }), maxReservedTokens: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }), maxCost: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]), maxRevisions: Type.Integer({ minimum: 0, maximum: 10 }) });
 export type RunBudget = Static<typeof BudgetSchema>;
 const JobSchema = Strict({ schemaVersion: Type.Literal(1), id: Id, projectId: Id, sceneId: Id, inputHash: Hash,
   status: Type.Enum(['prepared', 'running', 'paused', 'blocked', 'accepted'] as const), next: Nonempty, budget: BudgetSchema,

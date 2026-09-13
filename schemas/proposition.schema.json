@@ -1,0 +1,319 @@
+{
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "subjectId",
+    "predicate",
+    "value",
+    "layer",
+    "status",
+    "holderId",
+    "acquisition",
+    "validTime",
+    "disclosedAt",
+    "sourceType",
+    "validation",
+    "confidence",
+    "evidence",
+    "sourceRecords",
+    "review",
+    "supersedes",
+    "conflictsWith"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "subjectId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "predicate": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "value": {},
+    "layer": {
+      "enum": [
+        "world",
+        "character",
+        "narrator",
+        "reader"
+      ]
+    },
+    "status": {
+      "enum": [
+        "canon",
+        "viewpoint_belief",
+        "rumor",
+        "hypothesis",
+        "planned",
+        "retconned",
+        "unknown"
+      ]
+    },
+    "holderId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "acquisition": {
+      "type": "object",
+      "required": [
+        "eventId",
+        "at"
+      ],
+      "properties": {
+        "eventId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "at": {
+          "type": "object",
+          "required": [
+            "earliest",
+            "latest",
+            "label"
+          ],
+          "properties": {
+            "earliest": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "latest": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 20000
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "validTime": {
+      "type": "object",
+      "required": [
+        "earliest",
+        "latest",
+        "label"
+      ],
+      "properties": {
+        "earliest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 20000
+        }
+      },
+      "additionalProperties": false
+    },
+    "disclosedAt": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceType": {
+      "enum": [
+        "narration",
+        "dialogue",
+        "free_indirect",
+        "metaphor",
+        "hypothetical",
+        "author_design"
+      ]
+    },
+    "validation": {
+      "enum": [
+        "proposed",
+        "verified",
+        "disputed"
+      ]
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "type": "string",
+          "const": "medium"
+        },
+        {
+          "type": "string",
+          "const": "high"
+        }
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "sceneId",
+          "textHash",
+          "start",
+          "end",
+          "quote",
+          "offsetUnit"
+        ],
+        "properties": {
+          "sceneId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "textHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "offsetUnit": {
+            "type": "string",
+            "const": "utf16"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "sourceRecords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key",
+          "hash"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "maxItems": 2000
+    },
+    "review": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "actor",
+            "rationale"
+          ],
+          "properties": {
+            "actor": {
+              "enum": [
+                "author",
+                "model"
+              ]
+            },
+            "rationale": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20000
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "supersedes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "maxItems": 100
+    },
+    "conflictsWith": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      },
+      "maxItems": 100
+    }
+  },
+  "additionalProperties": false
+}

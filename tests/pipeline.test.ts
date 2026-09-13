@@ -19,7 +19,7 @@ test('complete scene review commits prose, state evidence and provenance as one 
   const f = pipelineFixture(); try {
     const original = fs.readFileSync(f.file, 'utf8'), p = prepareScene(f.root, f.address, f.setup, proseHash(f.body)), worker = mockPipelineHost(f.address.id), auth = permit(f.store.projectId, p.id);
     const before = f.store.head().hash, s = await runScene(f.root, p.id, worker.host, auth);
-    assert.equal(s.stage, 'ready'); assert.equal(worker.calls(), 3); assert.equal(f.store.head().hash, before); assert.equal(fs.readFileSync(f.file, 'utf8'), original);
+    assert.equal(s.stage, 'ready'); assert.equal(worker.calls(), 4); assert.equal(f.store.head().hash, before); assert.equal(fs.readFileSync(f.file, 'utf8'), original);
     const result = acceptScene(f.root, p.id, auth); assert.equal(result.projected, true); assert.notEqual(result.head, before);
     for (const kind of ['prose', 'summary', 'validation', 'diagnostics', 'observation', 'acceptance']) assert.ok(f.store.get(`${kind}:${f.address.id}`));
     assert.equal(readPipeline(f.root, p.id).stage, 'accepted'); assert.equal(acceptScene(f.root, p.id, auth).projected, false);
@@ -29,7 +29,7 @@ test('complete scene review commits prose, state evidence and provenance as one 
 test('bounded continuation appends without replacing previous prose', async () => {
   const f = pipelineFixture(); try {
     f.setup.mode = 'continue'; const p = prepareScene(f.root, f.address, f.setup, proseHash(f.body)), worker = mockPipelineHost(f.address.id), auth = permit(f.store.projectId, p.id);
-    const s = await runScene(f.root, p.id, worker.host, auth); assert.equal(s.stage, 'ready'); assert.ok(s.body.startsWith(f.body)); assert.equal(worker.calls(), 5);
+    const s = await runScene(f.root, p.id, worker.host, auth); assert.equal(s.stage, 'ready'); assert.ok(s.body.startsWith(f.body)); assert.equal(worker.calls(), 6);
     acceptScene(f.root, p.id, auth); assert.ok(fs.readFileSync(f.file, 'utf8').endsWith('A hinge creaked. She stayed.'));
   } finally { f.dispose(); }
 });

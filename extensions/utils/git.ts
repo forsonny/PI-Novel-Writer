@@ -4,7 +4,6 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import { projectPath } from './safety.ts';
-import { pathsEqual } from './platform.ts';
 
 const execute = promisify(execFile);
 const hash = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
@@ -40,7 +39,8 @@ export function gitBranch(branch: string): string {
 }
 export async function requireRepositoryRoot(root: string): Promise<void> {
   const top = (await git(root, ['rev-parse', '--show-toplevel'])).trim();
-  if (!pathsEqual(fs.realpathSync(root), fs.realpathSync(top))) throw new Error('The Git repository must be rooted at this novel, not a parent directory');
+  const requested = fs.statSync(root, { bigint: true }), repository = fs.statSync(top, { bigint: true });
+  if (requested.dev !== repository.dev || requested.ino !== repository.ino) throw new Error('The Git repository must be rooted at this novel, not a parent directory');
 }
 export function shareablePath(relative: string): boolean {
   const segments = relative.replace(/\\/g, '/').split('/');

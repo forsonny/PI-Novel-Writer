@@ -28,11 +28,11 @@ test('Pi tools expose prepared bounded pipeline without granting permission on l
     await assert.rejects(f.pi.call('novel_literary_run', { jobId: id }, f.ctx), /Authorize/);
     await f.command('authorize 12 300000');
     const r = await f.pi.call('novel_literary_run', { jobId: id }, f.ctx);
-    assert.equal(JSON.parse(r.content[0].text).stage, 'ready'); assert.equal(f.worker.calls(), 3);
+    assert.equal(JSON.parse(r.content[0].text).stage, 'ready'); assert.equal(f.worker.calls(), 4);
     await f.pi.call('novel_literary_accept', { jobId: id }, f.ctx);
     assert.ok(f.store.get(`acceptance:${f.address.id}`));
     const status = JSON.parse((await f.pi.call('novel_literary_status', {}, f.ctx)).content[0].text);
-    assert.equal(status.authority.calls, 9); assert.ok(status.authority.tokens > 0);
+    assert.equal(status.authority.calls, 8); assert.ok(status.authority.tokens > 0);
   } finally { f.dispose(); }
 });
 test('pause, model change and new user instructions revoke worker authority', async () => {
@@ -72,4 +72,17 @@ test('explicit migration preview preserves prose and user metadata', async () =>
     assert.equal(fs.readFileSync(f.file, 'utf8'), before); await assert.rejects(f.command('apply ' + 'b'.repeat(64)), /digest|approval/i);
     await f.command('apply ' + preview.digest); assert.equal(fs.readFileSync(f.file, 'utf8'), before);
   } finally { f.dispose(); }
+});
+test('acceptance rejects reading-order changes after review through either authority path', async () => {
+  for (const human of [false, true]) {
+    const f = adapterFixture(); try {
+      const id = await f.prepare(); await f.command('authorize 12 300000');
+      await f.pi.call('novel_literary_run', { jobId: id }, f.ctx);
+      const head = f.store.head().hash, before = fs.readFileSync(f.file, 'utf8');
+      fs.writeFileSync(path.join(path.dirname(f.file), 'scene-02.md'), `---\nid: "${newId()}"\nscene: 2\norder: 0.5\n---\nAn earlier scene.`);
+      await assert.rejects(human ? f.command(`accept ${id}`) : f.pi.call('novel_literary_accept', { jobId: id }, f.ctx), /reading order/i);
+      assert.equal(f.store.head().hash, head);
+      assert.equal(fs.readFileSync(f.file, 'utf8'), before);
+    } finally { f.dispose(); }
+  }
 });

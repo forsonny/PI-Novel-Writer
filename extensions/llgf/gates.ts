@@ -14,6 +14,7 @@ export const ValidationSchema = Strict({ schemaVersion: Type.Literal(1), sceneId
   information: Type.Array(Strict({ index: Type.Integer({ minimum: 0 }), outcome: Type.Enum(['preserved', 'violated', 'uncertain'] as const), rationale: Nonempty }), { maxItems: 100 }),
   protections: Type.Array(PreservationCheckSchema, { maxItems: 100 }),
   stateDecisions: Type.Array(Strict({ id: Id, outcome: Type.Enum(['verified', 'rejected', 'uncertain'] as const), rationale: Nonempty }), { maxItems: 200 }),
+  registryDecisions: Type.Optional(Type.Array(Strict({ id: Id, outcome: Type.Enum(['verified', 'rejected', 'uncertain'] as const), rationale: Nonempty }), { maxItems: 90 })),
   exitInRange: Type.Boolean(), exitRationale: Nonempty, limitations: strings(),
 });
 export type SceneValidation = Static<typeof ValidationSchema>;

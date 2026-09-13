@@ -1,0 +1,98 @@
+{
+  "type": "object",
+  "required": [
+    "focalizerId",
+    "sceneFunction",
+    "secondaryFunctions",
+    "pressure",
+    "distance",
+    "epochId",
+    "storyTime",
+    "narrativeIndex"
+  ],
+  "properties": {
+    "focalizerId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sceneFunction": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "secondaryFunctions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "maxItems": 256
+    },
+    "pressure": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "distance": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "epochId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "storyTime": {
+      "type": "object",
+      "required": [
+        "earliest",
+        "latest",
+        "label"
+      ],
+      "properties": {
+        "earliest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latest": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 20000
+        }
+      },
+      "additionalProperties": false
+    },
+    "narrativeIndex": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}

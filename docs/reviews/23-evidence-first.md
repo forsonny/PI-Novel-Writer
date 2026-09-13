@@ -1,0 +1,7 @@
+# Change 23: prose-first reconstruction and full evidence binding
+
+Added a stateless cold-reconstruction role that sees the prose alone, without the contract, hidden intentions, voice specification, or parent conversation. Its evidence is checked against the candidate. The contextual validator receives that reconstruction afterward rather than silently supplying missing outline meaning. This adds one accounted model call per review cycle; it is not a human cold read.
+
+Acceptance now binds validation and diagnostics to the actual context read set and the accepted voice version. Derived states depend on their validated evidence, so upstream changes invalidate downstream assessments even when wording stays unchanged. Mutable promise/motif aggregates expand to their source evidence instead of making every added occurrence invalidate previous scenes. Existing accepted voice designs are no longer rewritten on each scene. Invalidated prose remains preserved but is withheld from automatic narrative retrieval pending reassessment.
+
+Review also repaired exact-span hashes when append-only drafting changes the scene hash while leaving protected offsets unchanged. Tests inspect the reader packet for a withheld sentinel, change voice controls without changing text, and exercise protected append offsets. Verification: syntax, strict TypeScript and 107 tests pass. No inference is made that source-linked model judgments are infallible or independently human-validated.
