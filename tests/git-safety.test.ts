@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { git, githubUrl, gitBranch, previewGit, commitPreview, shareablePath, redactGitOutput } from '../extensions/utils/git.ts';
+import { git, githubUrl, gitBranch, previewGit, commitPreview, shareablePath, redactGitOutput, requireRepositoryRoot } from '../extensions/utils/git.ts';
 
 test('Git destinations cannot contain credentials, options, or other hosts', () => {
   assert.equal(githubUrl('https://github.com/owner/repo'), 'https://github.com/owner/repo.git');
@@ -45,6 +45,16 @@ test('CRLF and declared Git line-ending filters are previewed correctly', async 
     const preview = await previewGit(dir);
     await commitPreview(dir, 'Review CRLF', preview.paths, preview.hash);
     assert.equal(await git(dir, ['show', 'HEAD:scene.md']), 'One.\nTwo.\n');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('repository-root checks recognize the same directory through a native path alias', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnw-root-alias-'));
+  try {
+    await git(dir, ['init', '--initial-branch', 'main']);
+    await requireRepositoryRoot(path.toNamespacedPath(dir));
+    const child = path.join(dir, 'child'); fs.mkdirSync(child);
+    await assert.rejects(requireRepositoryRoot(child), /parent directory/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
