@@ -4,6 +4,7 @@ import { Type } from 'typebox';
 import { Id, Nonempty, Strict, checked } from './schema.ts';
 import { newId } from './version.ts';
 import { projectPath } from '../utils/safety.ts';
+import { retainProjectFile } from '../utils/retention.ts';
 const LockSchema = Strict({ token: Id, pid: Type.Integer({ minimum: 1 }), host: Nonempty, createdAt: Nonempty });
 function lockFile(root: string, id: string): string { checked(Id, id); return projectPath(root, `.pnw/jobs/${id}.execution.lock`); }
 export function executionLock(root: string, id: string) {
@@ -19,7 +20,7 @@ export async function withExecution<T>(root: string, id: string, work: () => Pro
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('Job already executing or interrupted; inspect its execution lock'); throw error; }
   const token = newId();
   try { fs.writeFileSync(fd, JSON.stringify({ token, pid: process.pid, host: os.hostname(), createdAt: new Date().toISOString() })); fs.fsyncSync(fd); return await work(); }
-  finally { fs.closeSync(fd); if (executionLock(root, id)?.token === token) fs.unlinkSync(file); }
+  finally { fs.closeSync(fd); if (executionLock(root, id)?.token === token) retainProjectFile(root, file, 'Released execution lock'); }
 }
 /** Called only by an explicit author recovery command. Never steal a live local
  * process's lock or guess about a lock from another machine. */
@@ -30,5 +31,5 @@ export function recoverExecution(root: string, id: string, expectedToken: string
   try { process.kill(lock.pid, 0); throw new Error('Execution owner is still running; stop it before recovery'); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
   if (executionLock(root, id)?.token !== expectedToken) throw new Error('Execution lock changed');
-  fs.unlinkSync(lockFile(root, id));
+  retainProjectFile(root, lockFile(root, id), 'Explicitly recovered stopped execution owner');
 }

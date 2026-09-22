@@ -10,6 +10,19 @@ versions; a stale dependency requests reassessment without deleting earlier pros
 The package does not encrypt the disk or control a provider's retention policy.
 Use appropriate local storage and transmission permissions for unpublished work.
 
+Completed coordination/scratch files are retained under `.pnw/retained`, not
+permanently deleted. Each retirement has an exact-source receipt and an unchanged
+content copy in its own new private directory. Owner checks still apply; active,
+foreign or unverifiable recovery owners are not retired. Retained material is
+excluded from publication, is not automatically purged, and can grow over time.
+Migration rollback also retains newly introduced files instead of deleting them.
+
+Scene extraction and validation exclude stored language affordances when provider
+transmission or analysis rights are denied. Their requests record omitted IDs
+and the reason without sending the private text; an omitted design has not been
+assessed. Analysis permission does not grant drafting permission, and approving
+the scene itself does not override restrictions on stored sources.
+
 `novel_literary_memory` reads coordinator records, not a guarantee that every
 character knows them. `novel_literary_patterns` provides versioned pattern cards
 and scope-specific repair risks, not a provenance detector.

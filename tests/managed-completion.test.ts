@@ -53,7 +53,7 @@ test('current complete chapter and manuscript assessments satisfy managed review
 });
 test('managed auto author command grants bounded workers; loading, missing budgets and pause do not', async () => {
   const f = pipelineFixture(), pi = fakePi(); core(pi.api); literary(pi.api); auto(pi.api);
-  const ctx = { ...f.ctx, ...mockPipelineHost(f.address.id).host, abort: async () => {} };
+  const ctx = { ...f.ctx, ...mockPipelineHost(f.address.id).host, abort: () => {}, waitForIdle: async () => {} };
   try {
     await pi.commands.get('PNW-load')!.handler(f.root, ctx);
     const status = async () => JSON.parse((await pi.call('novel_literary_status', {}, ctx)).content[0].text);

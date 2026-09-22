@@ -11,6 +11,10 @@ Do not initialize over an existing `project.json` or `manuscript/`; the command
 will refuse. Load that work instead. Do not delete project settings to “reset” an
 existing novel; use a separate folder.
 
+Full setup also refuses existing premise, beat-sheet, voice, timeline or continuity
+placeholder files before making changes. Preserve those files and import them
+into a separately initialized workspace rather than overwriting them.
+
 When upgrading an older novel, do not rerun initialization. Compare the current
 package guidance with `.pi/APPEND_SYSTEM.md`, remove the old summary-reading ban,
 and merge corrections without overwriting author additions.

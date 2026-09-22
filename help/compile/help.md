@@ -12,5 +12,9 @@ Output is written under `exports/` and old exports are retained. The command doe
 not publish, upload, produce PDF/EPUB, apply a custom reference document, or delete
 older exports.
 
+If manuscript writing fails, its source manifest and any partial output are
+retained for recovery. The operation reports an error, not a completed export;
+the presence of files alone is not proof of a successful export.
+
 `compile_manuscript` writes Markdown only. `export_docx` converts one absolute
 Markdown path to one absolute DOCX path with `pandoc input -o output`.

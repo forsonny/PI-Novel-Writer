@@ -44,10 +44,11 @@ export async function requireRepositoryRoot(root: string): Promise<void> {
 }
 export function shareablePath(relative: string): boolean {
   const segments = relative.replace(/\\/g, '/').split('/');
-  if (segments.some(s => !s || s === '.' || s === '..' || ['.git', '.pnw', '.pi', 'node_modules'].includes(s.toLowerCase()))) return false;
+  if (segments.some(s => !s || s === '.' || s === '..' || ['.git', '.pnw', '.pi', 'node_modules', 'private'].includes(s.toLowerCase()))) return false;
   const name = segments.at(-1)!.toLowerCase();
   return !name.startsWith('.env') && !/\.(pem|key|p12|pfx)$/.test(name) && !/^(id_rsa|id_ed25519|credentials)(\.|$)/.test(name)
-    && !/^notes\/(revisions|deleted-scenes)\//i.test(relative.replace(/\\/g, '/'));
+    && !/^notes\/(revisions|deleted-scenes)\//i.test(relative.replace(/\\/g, '/'))
+    && !/^manuscript-.*\.manifest\.json$/.test(name);
 }
 export interface GitPreview {
   hash: string;

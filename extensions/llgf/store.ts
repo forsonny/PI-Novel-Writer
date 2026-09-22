@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { Type, type Static } from 'typebox';
 import { projectPath } from '../utils/safety.ts';
+import { retainProjectFile } from '../utils/retention.ts';
 import { canonicalJson, hashText, newId, requireHash, requireId } from './version.ts';
 import { checked, Strict, Id, Hash, Kind, Key, Sources, Timestamp, Short, type SourceRef } from './schema.ts';
 
@@ -27,7 +28,7 @@ export function recoverStoreLock(root: string, token: string): void {
   try { process.kill(lock.pid, 0); throw new Error('Store owner is still running'); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error; }
   if (inspectStoreLock(root)?.token !== token) throw new Error('Store lock changed');
-  fs.unlinkSync(projectPath(root, '.pnw/write.lock'));
+  retainProjectFile(root, projectPath(root, '.pnw/write.lock'), 'Explicitly recovered stopped accepted-store owner');
 }
 export interface StoreFaults { beforeHeadSwap?: () => void }
 
@@ -47,7 +48,7 @@ export class LiteraryStore {
     const raw = readObject(root, hash);
     return new LiteraryStore(root, checked(SnapshotSchema, raw, 'snapshot').projectId, faults);
   }
-  static initialize(root: string, projectId = newId()): LiteraryStore {
+  static initialize(root: string, projectId: string = newId()): LiteraryStore {
     const store = new LiteraryStore(root, projectId);
     fs.mkdirSync(projectPath(root, '.pnw/objects'), { recursive: true, mode: 0o700 });
     store.lock(() => {
@@ -183,7 +184,7 @@ export class LiteraryStore {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
       if (fs.readFileSync(file, 'utf8') !== content) throw new Error('Corrupt content-addressed object');
-    } finally { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
+    } finally { if (fs.existsSync(tmp)) retainProjectFile(this.root, tmp, 'Completed object publication scratch'); }
     return hash;
   }
   private swapHead(hash: string): string | undefined {
@@ -197,7 +198,7 @@ export class LiteraryStore {
     const head = projectPath(this.root, '.pnw/HEAD'); const tmp = projectPath(this.root, `.pnw/HEAD.${newId()}.tmp`);
     const fd = fs.openSync(tmp, 'wx', 0o600);
     try { fs.writeFileSync(fd, hash + '\n'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-    try { fs.renameSync(tmp, head); } finally { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); }
+    try { fs.renameSync(tmp, head); } finally { if (fs.existsSync(tmp)) retainProjectFile(this.root, tmp, 'Unpublished accepted-pointer scratch'); }
     try { syncDirectory(projectPath(this.root, '.pnw')); }
     catch { warning = 'Accepted pointer updated; directory fsync failed, so power-loss durability is uncertain'; }
     return warning;
@@ -219,7 +220,7 @@ export class LiteraryStore {
       fs.closeSync(fd);
       let ownsLock = false;
       try { ownsLock = JSON.parse(fs.readFileSync(file, 'utf8')).token === token; } catch { /* Do not remove a lock whose owner is unknown. */ }
-      if (ownsLock) fs.unlinkSync(file);
+      if (ownsLock) retainProjectFile(this.root, file, 'Released accepted-store lock');
     }
   }
 }

@@ -20,22 +20,36 @@ In a separate novel directory, initialize or load the project, then preview:
 /PNW-literary apply <digest returned by the preview>
 ```
 
-Migration preserves manuscript wording and author guidance. It does not validate
-imported facts or authorize paid calls. Existing saved guidance can be upgraded
+Approved activation creates matching empty accepted history if it is missing;
+repeating activation preserves existing history. Migration preserves manuscript
+wording and author guidance. It does not accept prose, validate imported facts
+or authorize paid calls. Existing saved guidance can be upgraded
 separately with `/PNW-literary upgrade-guidance 0.2.2` and explicit application of
 the returned preview. Author conflicts remain visible instead of being overwritten.
 
-For a bounded single-scene session:
+For a bounded single-scene session, **prepare before authorizing execution**.
+Ask Pi to use the `literary-workflow` skill to propose the actual plan, voice and
+scene setup without running workers. Complete any author design approvals, then
+ask Pi to prepare one version-bound job and return its ID and budget. The
+[walkthrough](help/literary/walkthrough.md) explains those preparation steps.
+`configs/example-scene-setup.json` is only an illustration: replace its IDs and
+narrative/voice data before use.
+
+Choose call/reserved-token limits that cover the prepared job's budget, then
+enter these commands directly, replacing the placeholders:
 
 ```text
-/PNW-literary authorize 20 250000
+/PNW-literary authorize <calls> <tokens>
+/PNW-literary run <jobId>
+/PNW-literary status <jobId>
 ```
 
-These are example **call and reserved-token limits**, not a cost prediction. The
-job budget must fit the remaining allowance. Ask Pi to use the `literary-workflow`
-skill to create the actual plan, AVS and scene setup, prepare a version-bound job,
-run it and inspect its evidence. `configs/example-scene-setup.json` is only an
-illustration: replace its IDs and narrative/voice data before use.
+Do not insert an ordinary chat request between authorization and running.
+Ordinary input deliberately revokes permission. If you need to redirect the work,
+finish that discussion, prepare against current sources and authorize again.
+Limits are not a cost prediction. Running leaves the result provisional; inspect
+it and, only if ready and wanted, explicitly accept with
+`/PNW-literary accept <jobId>`. Acceptance is not publication or a human study.
 
 For delegated automatic continuation on a managed project:
 
@@ -48,6 +62,11 @@ For delegated automatic continuation on a managed project:
 Limits are explicitly authorized per session; restart never restores spending
 permission. Model tools cannot silently increase them. Worker and coordinator
 usage are reported separately. Creative delegation never authorizes publication.
+
+Prepared jobs also have fixed budgets: renewing session permission does not refill
+an exhausted job. Its saved draft and prior charges remain intact. Use the
+[candidate-reuse procedure](help/literary/walkthrough.md#when-a-job-exhausts-its-allowance)
+for an explicit working edit, fresh preparation and new permission—not a silent restart.
 
 Managed completion requires current accepted scenes, summaries, reading order and
 complete chapter/arc/manuscript audits, not a `final` status label. A model audit is
@@ -88,6 +107,11 @@ pauses the run so you can redirect it. Creative delegation is saved; execution
 permission is not silently restored on startup. If the model stops without
 saving progress, one recovery request asks it to checkpoint real work or name a
 blocker; a second failure stops rather than looping indefinitely.
+
+`/PNW-auto pause` acknowledges only after the current activity has settled.
+Status/progress and sprint notices are informational: they do not request another
+model response or restart a paused run. Explicit resume restarts autonomy; a new
+author request can still make a separately directed edit while autonomy stays paused.
 
 Successful checkpoints end a work unit without an extra model recap. Between
 units (and on resume), autonomous writing requests compaction at the smaller of

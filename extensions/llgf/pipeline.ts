@@ -11,6 +11,7 @@ import { RevisionProposalSchema, ComparisonSchema, planRevisions, applyRevision,
 import { ValidationSchema, validateSceneReview, sceneGate, type GateResult, type SceneValidation } from './gates.ts';
 import { GenerationPolicySchema, defaultGeneration, validateGeneration, candidateStrategies, validateDraftUnit, SelectionSchema, selectCandidate } from './generation.ts';
 import { RegistryDeltaSchema, emptyDelta, registryEventIds, applyRegistryDelta, registryMemory, type RegistryDelta } from './registry-service.ts';
+import { AffordanceSchema } from './registries.ts';
 import { withExecution } from './execution.ts';
 import { JobStore, BudgetSchema } from './jobs.ts';
 import { LiteraryStore, type SnapshotRef } from './store.ts';
@@ -165,7 +166,7 @@ async function runSceneUnlocked(root: string, id: string, host: WorkerHost, perm
   const settings = managedProject(root)!;
   if (permit.runId !== id || permit.projectId !== p.projectId || !permit.active()) throw new Error('Scene execution is not authorized');
   if (s.stage === 'accepted' || s.stage === 'ready') return s;
-  if (s.stage === 'blocked') throw new Error('Inspect the failed candidate and prepare a new branch after repairing its controls');
+  if (s.stage === 'blocked') throw new Error(`Job is blocked; session authorization does not refill its fixed budget. Candidate retained at .pnw/jobs/${id}.pipeline.json (body). Inspect the blocker and use the documented source-bound working-copy recovery followed by fresh preparation. Prior usage stays charged.`);
   const at = store.head();
   const fresh = () => {
     signal?.throwIfAborted();
@@ -244,8 +245,20 @@ async function runSceneUnlocked(root: string, id: string, host: WorkerHost, perm
       const proseRead = await call('read', ProseReadSchema, s.body, {});
       checkEvidence(proseRead.evidence, resolve);
       if (proseRead.evidence.some(e => e.sceneId !== p.address.id || e.textHash !== proseHash(s.body))) throw new Error('Cold reconstruction must cite only this prose');
-      const registryOptions = Object.entries(at.snapshot.versions).filter(([key]) => /^(promise|motif|affordance):/.test(key) && !store.stale([{ key, hash: at.snapshot.versions[key] }], at).length).map(([key, hash]) => ({ key, payload: store.artifact(hash).payload }));
-      const extraction = await call('extract', ExtractionSchema, s.body, { registryOptions, textHash: proseHash(s.body), instruction: 'Propose only states established by THIS scene. No author_design records. Every proposal requires exact current-scene evidence. IDs must be new; supersedes identifies earlier records. Keep all epistemic distinctions.' });
+      const registryOptions: { key: string; payload: unknown }[] = [], registryOmissions: { key: string; reason: string }[] = [];
+      for (const [key, hash] of Object.entries(at.snapshot.versions)) {
+        if (!/^(promise|motif|affordance):/.test(key) || store.stale([{ key, hash }], at).length) continue;
+        const payload = store.artifact(hash).payload;
+        if (key.startsWith('affordance:')) {
+          const a = checked(AffordanceSchema, payload);
+          if (!a.providerTransmissionAllowed || ['excluded', 'unknown'].includes(a.rights.status) || !a.rights.permitted.includes('analysis')) {
+            registryOmissions.push({ key, reason: 'Transmission or analysis rights not authorized; not assessed.' });
+            continue;
+          }
+        }
+        registryOptions.push({ key, payload });
+      }
+      const extraction = await call('extract', ExtractionSchema, s.body, { registryOptions, registryOmissions, textHash: proseHash(s.body), instruction: 'Propose only states established by THIS scene. No author_design records. Every proposal requires exact current-scene evidence. IDs must be new; supersedes identifies earlier records. Keep all epistemic distinctions.' });
       if (new Set(extraction.propositions.map(x => x.id)).size !== extraction.propositions.length) throw new Error('Extractor repeated a state ID');
       for (const delta of extraction.propositions) {
         if (delta.sourceType === 'author_design' || at.snapshot.versions[`proposition:${delta.id}`]) throw new Error('Extractor cannot claim author authority or overwrite an existing state ID');
@@ -257,7 +270,7 @@ async function runSceneUnlocked(root: string, id: string, host: WorkerHost, perm
       applyRegistryDelta(store, at, registry, contract, s.body);
       const diagnostics = validateDiagnostics(await call('diagnose', DiagnosticReportSchema, s.body, { textHash: proseHash(s.body), patterns: cardsFor(), assessmentRules: 'Cards require context and displaced work. Long-range claims require available history; report missing coverage. Never diagnose by title alone or treat a cause candidate as established.', observations: observeSurface(s.body), overlapScreen: anchorOverlaps(s.body, p.setup.anchors.map(a => ({ id: a.id, text: a.excerpt }))) }), s.body, p.address.id, resolve);
       if (!diagnostics.assessedPatternIds.length) throw new Error('Diagnostic assessment coverage is empty');
-      const validation = validateSceneReview(await call('validate', ValidationSchema, s.body, { textHash: proseHash(s.body), proseFirstReconstruction: proseRead, registryProposals: registry, registryOptions, stateProposals: extraction.propositions, extractionUncertainty: extraction.uncertainties, instruction: 'Review each state proposal exactly once. Interpret source evidence rather than trusting extractor labels. Originality is limited to available comparison sources; report that limitation.' }), s.body, contract, resolve);
+      const validation = validateSceneReview(await call('validate', ValidationSchema, s.body, { textHash: proseHash(s.body), proseFirstReconstruction: proseRead, registryProposals: registry, registryOptions, registryOmissions, stateProposals: extraction.propositions, extractionUncertainty: extraction.uncertainties, instruction: 'Review each state proposal exactly once. Interpret source evidence rather than trusting extractor labels. Originality is limited to available comparison sources; report that limitation.' }), s.body, contract, resolve);
       const registryIds = registryEventIds(registry), registryDecisions = validation.registryDecisions ?? [];
       if (new Set(registryDecisions.map(d => d.id)).size !== registryIds.length || registryDecisions.length !== registryIds.length || registryDecisions.some(d => !registryIds.includes(d.id) || d.outcome === 'uncertain')) throw new Error('Registry decision coverage is incomplete or uncertain');
       const verifiedRegistry: RegistryDelta = { promises: registry.promises.filter(x => registryDecisions.some(d => d.id === x.event.id && d.outcome === 'verified')), motifs: registry.motifs.filter(x => registryDecisions.some(d => d.id === x.event.id && d.outcome === 'verified')), affordances: registry.affordances.filter(x => registryDecisions.some(d => d.id === x.use.id && d.outcome === 'verified')) };

@@ -22,7 +22,13 @@ Ask the author:
 > - **Short Story** (1,000–17,000 words) — no chapters, just scenes
 > - **Flash Fiction** (under 1,000 words) — a single file
 
-Update `project.json` with their choice using the built-in `write` tool to set the `"format"` field.
+Read the current project before changing its format. Novel and novella share the
+chapter layout. Short stories use `manuscript/scenes`; flash fiction uses only
+`manuscript/story.md`. Changing `"format"` alone does not move existing prose and
+can hide the opening scene created by initialization. Do not do that conversion
+by simply editing the setting. Explain that short/flash conversion of an already
+initialized novel is not yet supported, preserve its current format and prose,
+and stop that conversion rather than claiming setup succeeded.
 
 ## Step 2: How Do You Work?
 

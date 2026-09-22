@@ -9,6 +9,15 @@ Tools create/read/update chapter outlines and upsert scene-card sections.
 `timeline`, and `scenes` metadata. `outline_scene_card_create` keeps the stored
 scene count at least as high as the scene-card number.
 
-`outline_chapter_reorder` renames one outline and one manuscript directory; it does
-not shift intervening chapters or comprehensively repair scene metadata/references.
-It is blocked during autonomous writing. Inspect and validate manually afterward.
+`outline_chapter_reorder` moves one novel/novella chapter to an unoccupied positive
+number. An occupied or ambiguous destination is refused before changing anything.
+Scene addresses are updated immediately and stable identities/prose are preserved.
+It does not shift intervening chapters or rewrite plot references in plans and
+summaries. It is blocked during autonomous writing; review those references afterward.
+
+Scene chapter moves are supported only for novels/novellas. Short stories can be
+split into adjacent scenes in their existing scene folder; flash fiction stays a
+single scene and refuses splitting. Unsupported operations leave prose untouched.
+
+Completed scene moves and merges retain their retired source files privately
+under `.pnw/retained`; originals are not permanently deleted.

@@ -23,3 +23,12 @@ Automatic context considers all five types, ordered deterministically by priorit
 core, then secondary, then minor. Entries that do not fit are omitted. Use
 `context_summary` to inspect selected and omitted entries and `bible_read` for
 anything load-bearing.
+
+Automatic context refuses bible, voice and summary paths that escape the selected
+novel, including linked files or folders. Import permitted material into the novel
+explicitly rather than linking unrelated files into automatic context.
+
+`novel_rename_entity` previews exact-case, word-boundary replacements. It preserves
+literal names in structured notes and refuses conflicting structured names or
+invalid JSON before writing. It does not add the old name as an alias or change
+other capitalization variants; maintain those separately with `bible_update`.

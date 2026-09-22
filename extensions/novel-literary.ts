@@ -5,7 +5,7 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { getProject, refreshProject, orderedScenes } from './novel-core.ts';
 import { projectPath } from './utils/safety.ts';
 import { SessionAuthority, type Scope } from './llgf/authority.ts';
-import { managedProject, previewMigration, applyMigration, recoverMigration, type MigrationPlan } from './llgf/migration.ts';
+import { managedProject, previewMigration, applyMigration, recoverMigration, inspectMigrationLock, recoverMigrationLock, type MigrationPlan } from './llgf/migration.ts';
 import { prepareScene, runScene, acceptScene, readPipeline, getPreparation, SceneSetupSchema, type SceneAddress } from './llgf/pipeline.ts';
 import { LiteraryStore, inspectStoreLock, recoverStoreLock, type RestorePreview } from './llgf/store.ts';
 import { executionLock, recoverExecution } from './llgf/execution.ts';
@@ -20,7 +20,7 @@ import { guidanceUpdate } from './llgf/guidance.ts';
 import { DriftBaselineSchema } from './llgf/drift.ts';
 import { designSchemas, saveDesign, type DesignKind } from './llgf/registry-service.ts';
 import { PlanSchema } from './llgf/planning.ts';
-import { objectHash, newId } from './llgf/version.ts';
+import { objectHash, newId, proseHash } from './llgf/version.ts';
 import { Id, Hash, Strict, checked } from './llgf/schema.ts';
 import { AVSSchema, AnchorSchema } from './llgf/voice.ts';
 import { SceneContractSchema, PropositionSchema } from './llgf/narrative.ts';
@@ -41,6 +41,7 @@ export function literaryAddress(chapter: number, scene: number): SceneAddress {
   return { id: s.id, path: path.relative(p.rootPath, s.filePath).replaceAll('\\', '/'), chapter, scene, order: s.order ?? s.scene, narrativeIndex: index };
 }
 function result(value: unknown) { return { content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }], details: {} }; }
+const jobBudgetPolicy = 'Scene-job budgets are fixed. A renewed session allowance does not refill an exhausted job. Reuse its saved candidate only through an explicit source-bound working edit and fresh preparation; prior reservations remain charged.';
 /** These adapters never infer permission from model text, saved jobs or loading.
  * The main agent may prepare work. Only a session-local author command enables
  * paid workers and delegated acceptance; human approval has no model-call tool.
@@ -66,9 +67,23 @@ export default function literaryExtension(pi: ExtensionAPI) {
   pi.on('input', event => { if (event.source !== 'extension') pause(); });
   const status = (id?: string) => {
     const p = project(), settings = managedProject(p.rootPath);
-    if (!id) return { settings, authority: authority.status(), acceptedHead: LiteraryStore.exists(p.rootPath) ? LiteraryStore.open(p.rootPath).head().hash : null, note: 'Engineering and model checks are not human literary evaluation.' };
-    checked(Id, id); const store = LiteraryStore.open(p.rootPath), state = readPipeline(p.rootPath, id), job = new JobStore(p.rootPath, store.projectId).read(id);
-    return { executionLock: executionLock(p.rootPath, id), id, stage: state.stage, reason: state.reason, units: state.units, job, candidateWords: state.body.trim().split(/\s+/).filter(Boolean).length, privateCheckpoint: `.pnw/jobs/${id}.pipeline.json`, evidenceRecords: state.records, gate: state.final ? (state.final as { gate?: unknown }).gate : null };
+    if (!id) return { settings, authority: authority.status(), acceptedHead: LiteraryStore.exists(p.rootPath) ? LiteraryStore.open(p.rootPath).head().hash : null, budgetPolicy: jobBudgetPolicy, note: 'Engineering and model checks are not human literary evaluation.' };
+    checked(Id, id); const store = LiteraryStore.open(p.rootPath), job = new JobStore(p.rootPath, store.projectId).read(id);
+    // Sequence audits use their own scope ID as job.sceneId, including older
+    // records. Scene preparations have a separate stable manuscript scene ID.
+    // Do not infer job kind merely because a scene checkpoint is missing.
+    if (job.sceneId === id) {
+      const key = `audit:${id}`;
+      const at = job.acceptedHead ? { hash: job.acceptedHead, snapshot: store.snapshot(job.acceptedHead) } : null;
+      const record = at ? store.get(key, at) : null;
+      if (at && !record) throw new Error('Accepted audit evidence is missing');
+      return { kind: 'sequence-audit', id, stage: job.status, reason: job.reason, job,
+        executionLock: executionLock(p.rootPath, id), privateJob: `.pnw/jobs/${id}.json`,
+        auditRecord: record && at ? { key, hash: at.snapshot.versions[key] } : null,
+        note: 'Saved audit-job accounting and history, not proof of current assessment. There is no scene candidate or pipeline checkpoint. Recovery retains charges and does not complete the review. Request a new scoped audit for another attempt, not a scene run.' };
+    }
+    const state = readPipeline(p.rootPath, id);
+    return { kind: 'scene', executionLock: executionLock(p.rootPath, id), id, stage: state.stage, reason: state.reason, units: state.units, job, budgetPolicy: jobBudgetPolicy, originalSourceHash: getPreparation(p.rootPath, id).originalHash, candidateHash: proseHash(state.body), candidateWords: state.body.trim().split(/\s+/).filter(Boolean).length, privateCheckpoint: `.pnw/jobs/${id}.pipeline.json`, evidenceRecords: state.records, gate: state.final ? (state.final as { gate?: unknown }).gate : null };
   };
   const accept = (id: string, ctx: ExtensionContext, actor: 'model' | 'human') => {
     const p = project(); checked(Id, id);
@@ -85,7 +100,7 @@ export default function literaryExtension(pi: ExtensionAPI) {
     finally { signal?.removeEventListener('abort', lease.cancel); let after; try { after = jobs.read(id); } catch { /* Unknown consumption is charged. */ } lease.close(after); }
   };
   pi.registerCommand('PNW-literary', {
-    description: 'Managed writing: status [job] | upgrade-guidance [0.2.2] | migrate [collaborative|delegated|research] | apply <digest> | authorize <calls> <tokens> | run <job> | accept <job> | inspect <job> <reason> | recover-job <id> <token> | recover-migration <id> | pause',
+    description: 'Managed writing: status [job] | upgrade-guidance [0.2.2] | migrate [collaborative|delegated|research] | apply <digest> | authorize <calls> <tokens> | run <job> | accept <job> | inspect <job> <reason> | recover-job <id> <token> | migration-lock | recover-migration-lock <token> | recover-migration <id> | account-lock <job> | recover-account-lock <job> <token> | pause',
     handler: async (args, ctx) => {
       const [action = 'status', ...rest] = args.trim().split(/\s+/).filter(Boolean);
       if (action === 'pause') { pause(); pi.sendMessage({ customType: 'novel-literary', content: 'Literary execution permission revoked. Saved candidates are retained.', display: true }); return; }
@@ -93,6 +108,21 @@ export default function literaryExtension(pi: ExtensionAPI) {
       if (action === 'status') output = status(rest[0]);
       else if (action === 'store-lock') output = { lock: inspectStoreLock(p.rootPath), note: 'Do not remove a live or unidentifiable owner lock.' };
       else if (action === 'recover-store') { if (authority.busy()) throw new Error('Wait for active workers'); pause(); recoverStoreLock(p.rootPath, rest[0]); output = { recovered: 'store lock' }; }
+      else if (action === 'migration-lock') output = { lock: inspectMigrationLock(p.rootPath), note: 'operationId identifies the migration journal. Empty legacy locks have no verifiable owner.' };
+      else if (action === 'recover-migration-lock') {
+        if (authority.busy()) throw new Error('Wait for active workers'); pause();
+        recoverMigrationLock(p.rootPath, rest[0]);
+        output = { recovered: 'migration lock', next: 'Inspect the recorded journal: recover an incomplete migration before a fresh preview. If the journal is complete or absent, obtain a fresh preview without rollback.', note: 'No source rollback or provider authorization occurred.' };
+      } else if (action === 'account-lock' || action === 'recover-account-lock') {
+        const id = checked(Id, rest[0]), store = LiteraryStore.open(p.rootPath), jobs = new JobStore(p.rootPath, store.projectId);
+        jobs.read(id);
+        if (action === 'account-lock') output = { jobId: id, lock: jobs.inspectLock(id) };
+        else {
+          if (authority.busy()) throw new Error('Wait for active workers'); pause();
+          jobs.recoverLock(id, rest[1]);
+          output = { recovered: 'accounting lock', job: jobs.read(id), note: 'Reservations and spent allowance are unchanged. Inspect interrupted calls before resuming; no new permission was granted.' };
+        }
+      }
       else if (action === 'restore') {
         if (authority.busy()) throw new Error('Pause and wait for active work before restoration');
         restorePreview = LiteraryStore.open(p.rootPath).previewRestore(rest[0]);
@@ -110,7 +140,7 @@ export default function literaryExtension(pi: ExtensionAPI) {
         if (!['collaborative', 'delegated', 'research'].includes(governance)) throw new Error('Unknown governance profile');
         if (authority.busy()) throw new Error('Pause active writing before migration');
         migration = previewMigration(p.rootPath, { sceneFiles: orderedScenes(p).map(s => path.relative(p.rootPath, s.filePath).replaceAll('\\', '/')), governance: governance as 'collaborative' | 'delegated' | 'research', enable: true });
-        output = { digest: migration.digest, files: migration.files.map(f => ({ path: f.path, reason: f.reason })), conflicts: migration.conflicts, next: '/PNW-literary apply ' + migration.digest, note: 'Read-only preview. No prose has changed and no provider is authorized.' };
+        output = { digest: migration.digest, files: migration.files.map(f => ({ path: f.path, reason: f.reason })), conflicts: migration.conflicts, next: '/PNW-literary apply ' + migration.digest, note: 'Read-only preview. Approval also establishes matching empty accepted history if absent; existing history is retained. Imported prose and facts remain unverified, and no provider is authorized.' };
       } else if (action === 'upgrade-guidance') {
         if (authority.busy()) throw new Error('Pause active workers before changing guidance');
         if (rest.length > 1) throw new Error('Supply at most one known baseline version');
@@ -126,7 +156,7 @@ export default function literaryExtension(pi: ExtensionAPI) {
         const s = scope(ctx); if (!s) throw new Error('Enable managed writing and select a model first');
         if (rest.length !== 2 || !rest.every(x => /^\d+$/.test(x))) throw new Error('Supply maximum calls and reserved tokens');
         authority.authorize(s, { maxCalls: Number(rest[0]), maxReservedTokens: Number(rest[1]), maxCost: null, maxRevisions: 10 });
-        output = { ...status(), note: 'Session-local authorization to transmit prepared project material to this selected model within these call/token limits. No billing amount or human approval is implied. Loading or resuming a session does not restore permission.' };
+        output = { ...status(), note: 'Session-local authorization to transmit prepared project material to this selected model within these call/token limits. Enter /PNW-literary run <jobId> directly; a new ordinary message revokes this allowance. No billing amount or human approval is implied. Loading or resuming a session does not restore permission.' };
       } else if (action === 'run') output = await run(rest[0], ctx);
       else if (action === 'accept') {
         // The explicit author command is an acceptance action, not a human study.
@@ -169,7 +199,7 @@ export default function literaryExtension(pi: ExtensionAPI) {
   pi.registerTool({ name: 'novel_literary_schema', label: 'Literary Data Schema', description: 'Read a versioned schema before preparing JSON. A schema is not a quality verdict.', parameters: Strict({ name: Type.Enum(Object.keys(schemas) as (keyof typeof schemas)[]) }),
     async execute(_id, params) { return result(schemas[params.name]); } });
   pi.registerTool({ name: 'novel_literary_prepare', label: 'Prepare Literary Scene', description: 'Validate a scene setup JSON against current source and state. Saves provisional work only; no model call, prose replacement, or execution permission.', parameters: Strict({ chapter: Type.Integer({ minimum: 1 }), scene: Type.Integer({ minimum: 1 }), setupPath: Type.String(), expectedSourceHash: Hash }),
-    async execute(_id, params) { const p = project(), address = literaryAddress(params.chapter, params.scene), prepared = prepareScene(p.rootPath, address, jsonFile(p.rootPath, params.setupPath), params.expectedSourceHash); return result({ jobId: prepared.id, budget: prepared.setup.budget, sourceHash: prepared.originalHash, next: 'novel_literary_run after author session authorization' }); } });
+    async execute(_id, params) { const p = project(), address = literaryAddress(params.chapter, params.scene), prepared = prepareScene(p.rootPath, address, jsonFile(p.rootPath, params.setupPath), params.expectedSourceHash); return result({ jobId: prepared.id, budget: prepared.setup.budget, budgetPolicy: jobBudgetPolicy, sourceHash: prepared.originalHash, next: `/PNW-literary authorize <calls> <tokens>, then /PNW-literary run ${prepared.id} directly. Ordinary chat revokes permission.` }); } });
   pi.registerTool({ name: 'novel_literary_status', label: 'Literary Status', description: 'Read actual managed state, remaining authorization or one job. Does not start paid work.', parameters: Strict({ jobId: Type.Optional(Id) }),
     async execute(_id, params) { return result(status(params.jobId)); } });
   pi.registerTool({ name: 'novel_literary_run', label: 'Run Literary Scene', description: 'Run bounded isolated workers for a prepared job within the author-granted session budget. Does not accept or publish the result.', parameters: Strict({ jobId: Id }),

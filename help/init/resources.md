@@ -10,9 +10,16 @@ when no installed copy exists. Later package upgrades do not update it. Merge ne
 guidance manually while preserving author additions. `.pi/AGENTS.md` is likewise
 created only when absent.
 
+Full setup does not replace existing premise, beat-sheet, voice, timeline or
+continuity files: it refuses before creating project settings. Quick setup does
+not create or replace those files.
+
 The opening scene has chapter/scene/title/POV/location/timeline/status,
 characters_present, plot_threads, tags and summary metadata. No created/updated or
 stored word-count fields are added.
 
-Short-story and flash-fiction layouts are used only after the configured format is
-changed; initialization starts in novel format.
+Initialization starts in novel format. Short stories scan `manuscript/scenes`;
+flash fiction scans only `manuscript/story.md`. Changing the format setting alone
+does not convert the initialized chapter layout and can hide existing prose.
+Do not change it to short/flash without a separately verified conversion; that
+onboarding conversion remains unsupported.

@@ -6,7 +6,8 @@ import fs from "node:fs";
 import { Type } from "typebox";
 import { Box, Text, Container, Spacer, truncateToWidth } from "@earendil-works/pi-tui";
 import { readText, writeText, resolvePath, pathsEqual, normalizeKey, toSafeFilename, validateFilename } from "./utils/platform.ts";
-import { getProject, parseFrontmatter, buildFrontmatter } from "./novel-core.ts";
+import { getProject, refreshProject, parseFrontmatter, buildFrontmatter, saveScene } from "./novel-core.ts";
+import { projectPath, positiveInteger } from "./utils/safety.ts";
 
 // ─── Shared Utilities ─────────────────────────────────────────────────────────
 
@@ -14,12 +15,13 @@ function ensureDir(dirPath: string): void {
   if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function getAllMdFiles(dir: string): string[] {
+function getAllMdFiles(root: string, dir: string): string[] {
+  dir = projectPath(root, dir);
   const results: string[] = [];
   if (!fs.existsSync(dir)) return results;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) results.push(...getAllMdFiles(full));
+    const full = projectPath(root, path.join(dir, entry.name));
+    if (entry.isDirectory()) results.push(...getAllMdFiles(root, full));
     else if (entry.name.endsWith(".md")) results.push(full);
   }
   return results;
@@ -47,9 +49,9 @@ interface BibleEntryRef {
 }
 
 export function findAllBibleEntries(rootPath: string): BibleEntryRef[] {
-  const bibleDir = path.join(rootPath, "bible");
+  const bibleDir = projectPath(rootPath, "bible");
   if (!fs.existsSync(bibleDir)) return [];
-  const files = getAllMdFiles(bibleDir);
+  const files = getAllMdFiles(rootPath, bibleDir);
   const entries: BibleEntryRef[] = [];
 
   for (const file of files) {
@@ -577,49 +579,53 @@ export default function novelBibleExtension(pi: any) {
   pi.registerTool({
     name: "outline_chapter_reorder",
     label: "Reorder Chapter Outline",
-    description: "Rename a chapter outline file and its manuscript directory to a new chapter number",
+    description: "Move a novel/novella chapter to an unoccupied positive number, updating scene addresses while preserving stable identities. Does not shift other chapters or rewrite plot references.",
     parameters: Type.Object({
-      oldChapter: Type.Number({ description: "Current chapter number" }),
-      newChapter: Type.Number({ description: "New chapter number" })
+      oldChapter: Type.Integer({ minimum: 1, description: "Current chapter number" }),
+      newChapter: Type.Integer({ minimum: 1, description: "New chapter number" })
     }),
     execute: async (_id: string, params: any) => {
-      const project = getProject();
+      const project = refreshProject();
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
-
-      // 1. Move the outline file
-      const outDir = path.join(project.rootPath, "outline", "chapters");
-      const oldPrefix = String(params.oldChapter).padStart(2, "0");
+      positiveInteger(params.oldChapter, "Source chapter");
+      positiveInteger(params.newChapter, "Destination chapter");
+      if (["short-story", "flash-fiction"].includes(project.config.format)) throw new Error("Chapter reorder is unsupported for this format.");
+      if (params.oldChapter === params.newChapter) throw new Error("Choose a different unoccupied chapter number.");
+      const outDir = projectPath(project.rootPath, "outline/chapters");
+      const msDir = projectPath(project.rootPath, "manuscript/chapters");
       const newPrefix = String(params.newChapter).padStart(2, "0");
-      
-      const outFiles = fs.readdirSync(outDir);
-      const outFile = outFiles.find(f => f.startsWith(`${oldPrefix}-`) && f.endsWith(".md"));
-
+      const outFiles = fs.existsSync(outDir) ? fs.readdirSync(outDir).filter(f => f.endsWith(".md")) : [];
+      const msDirs = fs.existsSync(msDir) ? fs.readdirSync(msDir) : [];
+      const numbered = (name: string, number: number) => parseInt(name.split("-")[0], 10) === number;
+      if (outFiles.some(f => numbered(f, params.newChapter)) || msDirs.some(d => numbered(d, params.newChapter))) {
+        throw new Error("Destination chapter is occupied. No outline or prose was changed.");
+      }
+      const oldOutFiles = outFiles.filter(f => numbered(f, params.oldChapter));
+      const oldMsDirs = msDirs.filter(d => numbered(d, params.oldChapter));
+      if (oldOutFiles.length > 1 || oldMsDirs.length > 1) throw new Error("Ambiguous source chapter; no files were changed.");
+      const outFile = oldOutFiles[0], oldMsDir = oldMsDirs[0];
+      if (!outFile && !oldMsDir) throw new Error("Source chapter not found.");
+      const scenes = [...project.scenes.values()].filter(s => s.chapter === params.oldChapter);
+      const newMsDir = oldMsDir?.replace(/^\d+/, newPrefix);
       if (outFile) {
-        const newOutFile = outFile.replace(new RegExp(`^${oldPrefix}-`), `${newPrefix}-`);
-        const oldOutPath = path.join(outDir, outFile);
-        const newOutPath = path.join(outDir, newOutFile);
-        
-        // update frontmatter internally
+        const oldOutPath = projectPath(project.rootPath, path.join(outDir, outFile));
+        const newOutPath = projectPath(project.rootPath, path.join(outDir, outFile.replace(/^\d+/, newPrefix)));
         const content = readText(oldOutPath);
         const { meta, body } = parseFrontmatter(content);
         meta.chapter = params.newChapter;
         writeText(oldOutPath, buildFrontmatter(meta) + body);
-        
         fs.renameSync(oldOutPath, newOutPath);
       }
-
-      // 2. Move the manuscript directory
-      const msDir = path.join(project.rootPath, "manuscript", "chapters");
-      if (fs.existsSync(msDir)) {
-        const msDirs = fs.readdirSync(msDir);
-        const oldMsDir = msDirs.find(d => d.startsWith(`${oldPrefix}-`) || d === oldPrefix);
-        if (oldMsDir) {
-          let newMsDir = oldMsDir.replace(new RegExp(`^${oldPrefix}`), newPrefix);
-          if (newMsDir === oldMsDir) newMsDir = newPrefix; // if it was exactly "01" say
-          fs.renameSync(path.join(msDir, oldMsDir), path.join(msDir, newMsDir));
+      if (oldMsDir && newMsDir) {
+        fs.renameSync(projectPath(project.rootPath, path.join(msDir, oldMsDir)), projectPath(project.rootPath, path.join(msDir, newMsDir)));
+        for (const scene of scenes) {
+          const file = projectPath(project.rootPath, path.join(msDir, newMsDir, path.basename(scene.filePath)));
+          const { meta, body } = parseFrontmatter(readText(file));
+          meta.chapter = params.newChapter;
+          saveScene(file, buildFrontmatter(meta) + body);
         }
       }
-
+      refreshProject();
       return { content: [{ type: "text", text: `Reordered chapter ${params.oldChapter} -> ${params.newChapter}.` }] };
     }
   });

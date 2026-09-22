@@ -5,6 +5,7 @@
 import path from "node:path";
 import { newId, proseHash, expectVersion } from "./llgf/version.ts";
 import { projectPath, positiveInteger, sceneMetadata } from "./utils/safety.ts";
+import { retainProjectFile } from "./utils/retention.ts";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -470,8 +471,12 @@ export default function novelCoreExtension(pi: any) {
       const root = ctx.cwd;
       const isQuick = args?.includes("--quick");
       const title = "Untitled Novel";
-      if (fs.existsSync(path.join(root, "project.json")) || fs.existsSync(path.join(root, "manuscript"))) {
-        pi.sendMessage({ customType: "markdown", content: "Existing novel work found. Use /PNW-load instead; initialization will not overwrite it.", display: true });
+      const occupied = ["project.json", "manuscript", ...isQuick ? [] : [
+        "premise.md", "outline/beat-sheet.md", "bible/voice-profile.md", "timeline/timeline.json",
+        "continuity/facts.json", "continuity/character-states.json", "continuity/report.json"
+      ]].find(file => fs.existsSync(path.join(root, file)));
+      if (occupied) {
+        pi.sendMessage({ customType: "markdown", content: `Existing novel work found (${occupied}). Initialization made no changes. Use /PNW-load for a configured novel, or initialize in an empty folder and import your existing material.`, display: true });
         return;
       }
       ensureDir(path.join(root, ".pi"));
@@ -636,7 +641,7 @@ export default function novelCoreExtension(pi: any) {
            alerts: missingGaps.map(message => ({ level: "warning", message })),
            apiCost
         }
-      });
+      }, { triggerTurn: false });
     }
   });
 
@@ -816,14 +821,16 @@ export default function novelCoreExtension(pi: any) {
   pi.registerTool({
     name: "novel_scene_move",
     label: "Move Scene",
-    description: "Move a scene to a different chapter with automatic renumbering",
+    description: "Move a novel/novella scene to a positive destination chapter with automatic renumbering. Short-story and flash-fiction chapter moves are unsupported.",
     parameters: Type.Object({
       chapter: Type.Number({ description: "Source chapter number" }),
       scene: Type.Number({ description: "Source scene number" }),
-      targetChapter: Type.Number({ description: "Destination chapter number" }),
+      targetChapter: Type.Integer({ minimum: 1, description: "Destination chapter number" }),
     }),
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      positiveInteger(params.targetChapter, "Destination chapter");
+      if (["short-story", "flash-fiction"].includes(project.config.format)) throw new Error("Chapter moves are unsupported for this format; no files were changed.");
       const key = sceneKey(params.chapter, params.scene);
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
@@ -849,7 +856,7 @@ export default function novelCoreExtension(pi: any) {
       const newFileName = `scene-${String(newSceneNum).padStart(2, "0")}.md`;
       const newPath = path.join(targetDir, newFileName);
       writeText(newPath, buildFrontmatter(meta) + body);
-      fs.unlinkSync(scene.filePath);
+      retainProjectFile(project.rootPath, scene.filePath, 'Original source of completed scene move');
 
       // Update in-memory
       project.scenes.delete(key);
@@ -1020,7 +1027,7 @@ export default function novelCoreExtension(pi: any) {
   pi.registerTool({
     name: "novel_scene_split",
     label: "Split Scene",
-    description: "Split a scene at a body-line boundary, preserving the original version. The continuation reads immediately after its first half; existing scene IDs and references remain stable.",
+    description: "Split a novel, novella or short-story scene at a body-line boundary, preserving the original version. Flash fiction is single-scene and cannot be split. The continuation reads immediately after its first half; existing scene IDs and references remain stable.",
     parameters: Type.Object({
       chapter: Type.Number({ description: "Chapter number" }),
       scene: Type.Number({ description: "Scene number" }),
@@ -1028,6 +1035,7 @@ export default function novelCoreExtension(pi: any) {
     }),
     execute: async (_id: string, params: any) => {
       if (!project) return { content: [{ type: "text", text: "No project loaded." }] };
+      if (project.config.format === "flash-fiction") throw new Error("Flash fiction is a single scene; splitting is unsupported. No files were changed.");
       const key = sceneKey(params.chapter, params.scene);
       const scene = project.scenes.get(key);
       if (!scene) return { content: [{ type: "text", text: `Scene not found.` }] };
@@ -1114,8 +1122,8 @@ export default function novelCoreExtension(pi: any) {
       const merged = body1.trimEnd() + "\n\n***\n\n" + body2.trimStart();
       writeText(s1.filePath, buildFrontmatter(meta1) + merged);
 
-      // Remove second scene
-      fs.unlinkSync(s2.filePath);
+      // Retire the second source without deleting its bytes.
+      retainProjectFile(project.rootPath, s2.filePath, 'Original second source of completed scene merge');
       project.scenes.delete(key2);
 
       return { content: [{ type: "text", text: `Merged scenes ${params.scene1} + ${params.scene2}. Originals archived.` }] };
@@ -1172,7 +1180,7 @@ export default function novelCoreExtension(pi: any) {
   pi.registerTool({
     name: "novel_rename_entity",
     label: "Rename Entity",
-    description: "Rename a character/location/item everywhere using word-boundary matching. Handles case variations and updates aliases.",
+    description: "Rename exact-case character/location/item occurrences using word-boundary matching, including structured names. Preview first. Does not add a former-name alias or change other case variants; maintain aliases separately.",
     parameters: Type.Object({
       oldName: Type.String({ description: "Current entity name" }),
       newName: Type.String({ description: "New entity name" }),
@@ -1185,6 +1193,18 @@ export default function novelCoreExtension(pi: any) {
       const pattern = new RegExp(`\\b${escapeRegex(params.oldName)}\\b`, "g");
       const results: string[] = [];
       let total = 0;
+      const changes: { filePath: string; content: string; updated: string; manuscript: boolean }[] = [];
+      const replace = (text: string) => text.replace(pattern, () => { total++; return params.newName; });
+      const renameValue = (value: any): any => {
+        if (typeof value === "string") return replace(value);
+        if (Array.isArray(value)) return value.map(renameValue);
+        if (value && typeof value === "object") {
+          const entries = Object.entries(value).map(([key, child]) => [replace(key), renameValue(child)] as const);
+          if (new Set(entries.map(([key]) => key)).size !== entries.length) throw new Error("Rename would merge existing structured names. No files were changed.");
+          return Object.fromEntries(entries);
+        }
+        return value;
+      };
 
       const scanDirs = ["manuscript", "bible", "outline", "summaries", "continuity", "timeline"];
       for (const dir of scanDirs) {
@@ -1192,21 +1212,29 @@ export default function novelCoreExtension(pi: any) {
         if (!fs.existsSync(dirPath)) continue;
         const files = getAllFiles(dirPath);
         for (const filePath of files) {
-          await withFileMutationQueue(filePath, async () => {
           const content = readText(filePath);
-          const matches = content.match(pattern);
-          if (matches && matches.length > 0) {
+          const before = total;
+          let updated: string;
+          if (filePath.endsWith(".json")) {
+            updated = JSON.stringify(renameValue(JSON.parse(content)), null, 2) + "\n";
+          } else if (FRONTMATTER_RE.test(content)) {
+            const { meta, body } = parseFrontmatter(content);
+            updated = buildFrontmatter(renameValue(meta)) + replace(body);
+          } else updated = replace(content);
+          if (total > before) {
             const rel = path.relative(activeProject.rootPath, filePath);
-            results.push(`${rel}: ${matches.length} occurrence(s)`);
-            total += matches.length;
-            if (!previewMode) {
-              const updated = content.replace(pattern, () => params.newName);
-              if (dir === "manuscript") saveScene(filePath, updated);
-              else writeText(filePath, updated);
-            }
+            results.push(`${rel}: ${total - before} occurrence(s)`);
+            changes.push({ filePath, content, updated, manuscript: dir === "manuscript" });
           }
-          });
         }
+      }
+      // Validate every structured document before changing any author material.
+      if (!previewMode) for (const change of changes) {
+        await withFileMutationQueue(change.filePath, async () => {
+          if (readText(change.filePath) !== change.content) throw new Error("Source changed during rename; preview again.");
+          if (change.manuscript) saveScene(change.filePath, change.updated);
+          else writeText(change.filePath, change.updated);
+        });
       }
 
       if (total === 0) return { content: [{ type: "text", text: `No occurrences of "${params.oldName}" found.` }] };

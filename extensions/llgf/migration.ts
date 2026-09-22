@@ -6,6 +6,8 @@ import { writeExact } from './io.ts';
 import { LiteraryStore } from './store.ts';
 import { checked, Strict, Id, Hash, Text, Nonempty, Short, Timestamp } from './schema.ts';
 import { hashText, newId, objectHash, requireId } from './version.ts';
+import { inspectOwnedLock, recoverOwnedLock, withOwnedLock } from './owned-lock.ts';
+import { retainProjectFile } from '../utils/retention.ts';
 
 export const ManagedProjectSchema = Strict({
   schemaVersion: Type.Literal(1), projectId: Id, enabled: Type.Boolean(),
@@ -125,11 +127,11 @@ function validatePlan(value: unknown): MigrationPlan {
 }
 const JournalSchema = Strict({ plan: PlanSchema, status: Type.Enum(['prepared', 'applying', 'complete', 'rolled_back'] as const), applied: Type.Array(Nonempty, { maxItems: 2000 }) });
 type Journal = Static<typeof JournalSchema>;
-function withLock<T>(root: string, fn: () => T): T {
+export function inspectMigrationLock(root: string) { return inspectOwnedLock(root, '.pnw/migration.lock'); }
+export function recoverMigrationLock(root: string, token: string): void { recoverOwnedLock(root, '.pnw/migration.lock', token); }
+function withLock<T>(root: string, operationId: string, fn: () => T): T {
   fs.mkdirSync(projectPath(root, '.pnw'), { recursive: true, mode: 0o700 });
-  const lock = projectPath(root, '.pnw/migration.lock'); let fd: number;
-  try { fd = fs.openSync(lock, 'wx', 0o600); } catch { throw new Error('Migration locked; inspect the interrupted process before retrying'); }
-  try { return fn(); } finally { fs.closeSync(fd); fs.unlinkSync(lock); }
+  return withOwnedLock(root, '.pnw/migration.lock', operationId, fn);
 }
 /** Apply a preview only after its digest has been explicitly selected by the caller.
  * A journal enables explicit recovery after interruption. Does not canonize old ledgers.
@@ -137,8 +139,7 @@ function withLock<T>(root: string, fn: () => T): T {
 export function applyMigration(root: string, raw: MigrationPlan, approvedDigest: string, afterWrite?: (index: number) => void): { changed: number; conflicts: string[]; replayed: boolean } {
   const plan = validatePlan(raw);
   if (fs.realpathSync(root) !== plan.root || approvedDigest !== plan.digest) throw new Error('Migration approval or project mismatch');
-  if (!plan.files.length) return { changed: 0, conflicts: plan.conflicts, replayed: false };
-  return withLock(root, () => {
+  const result = !plan.files.length ? { changed: 0, conflicts: plan.conflicts, replayed: false } : withLock(root, plan.id, () => {
     const dir = projectPath(root, `.pnw/migrations/${plan.id}`), journalPath = path.join(dir, 'journal.json');
     if (fs.existsSync(journalPath)) {
       const saved = checked(JournalSchema, JSON.parse(fs.readFileSync(journalPath, 'utf8')), 'migration journal');
@@ -167,6 +168,14 @@ export function applyMigration(root: string, raw: MigrationPlan, approvedDigest:
     } catch (error) { rollback(root, journal, journalPath); throw error; }
     return { changed: plan.files.length, conflicts: plan.conflicts, replayed: false };
   });
+  // Keep completed file migration replayable if initial history creation fails.
+  // Initialization is empty/idempotent: imported prose is never accepted here.
+  const settings = managedProject(root);
+  if (settings?.enabled) {
+    if (settings.projectId !== plan.projectId) throw new Error('Migration and managed settings belong to different projects');
+    LiteraryStore.initialize(root, plan.projectId);
+  }
+  return result;
 }
 function rollback(root: string, journal: Journal, file: string): void {
   validatePlan(journal.plan);
@@ -175,13 +184,13 @@ function rollback(root: string, journal: Journal, file: string): void {
     const target = projectPath(root, relative), now = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : null;
     if (now === f.before) continue;
     if (now !== f.after) throw new Error(`Recovery conflict: ${relative} changed outside migration; backup retained`);
-    if (f.before === null) fs.unlinkSync(target); else writeExact(target, f.before);
+    if (f.before === null) retainProjectFile(root, target, 'Rolled back a journal-verified newly introduced file'); else writeExact(target, f.before);
   }
   journal.status = 'rolled_back'; writeExact(file, JSON.stringify(journal));
 }
 export function recoverMigration(root: string, id: string): void {
   requireId(id);
-  withLock(root, () => {
+  withLock(root, id, () => {
     const file = projectPath(root, `.pnw/migrations/${id}/journal.json`);
     const journal = checked(JournalSchema, JSON.parse(fs.readFileSync(file, 'utf8')), 'migration journal');
     if (journal.plan.root !== fs.realpathSync(root)) throw new Error('Migration belongs to another project');

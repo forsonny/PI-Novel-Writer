@@ -143,7 +143,7 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
   let lastStop: string | undefined;
   let compacting = false;
 
-  const show = (content: string) => pi.sendMessage({ customType: "novel-auto-status", content, display: true });
+  const show = (content: string) => pi.sendMessage({ customType: "novel-auto-status", content, display: true }, { triggerTurn: false });
   const continueRun = (root: string, run: Run, recovery = false) => {
     if ((run.continuations ?? 0) >= (run.continuationLimit ?? 4000)) { pause("The bounded continuation limit was reached. Inspect work and explicitly resume with --turns <limit>.", true); return; }
     run.continuations = (run.continuations ?? 0) + 1; saveRun(root, run);
@@ -201,7 +201,8 @@ export default function novelAutoExtension(pi: ExtensionAPI) {
       }
       if (action === "pause") {
         pause("Paused by the author.");
-        await ctx.abort();
+        ctx.abort();
+        await ctx.waitForIdle();
         show("Writing paused. Saved work is retained; use /PNW-auto resume to continue.");
         return;
       }

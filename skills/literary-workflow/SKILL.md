@@ -12,7 +12,14 @@ The author enables a project by previewing `/PNW-literary migrate delegated`
 (or collaborative/research), then `/PNW-literary apply <digest>`. Imported prose
 and ledgers remain unverified. New scenes already receive stable IDs.
 
-For a single scene the author grants `/PNW-literary authorize <calls> <tokens>`.
+For a single scene, prepare first without worker authority. Propose controls
+outside `.pnw`; if accepted designs need updating, return the author's explicit
+design commands with current heads instead of attempting unauthorized delegated
+saves. After the author has saved the controls, read current sources and prepare
+one job. Return its ID/budget and the direct `authorize`, `run`, `status` commands;
+stop and wait. The author grants `/PNW-literary authorize <calls> <tokens>` and
+enters `/PNW-literary run <jobId>` directly. Do not ask for a fresh ordinary chat
+message after authorization: it deliberately revokes the allowance.
 For automatic continuation the author uses `/PNW-auto start --calls <N> --tokens
 <N> --turns <N> <brief>`, or resume with fresh explicit limits. Worker reservations
 include failed/interrupted calls. Coordinator replies and compaction are separate
@@ -72,7 +79,10 @@ scenes against an old HEAD and expect them to remain current after acceptance.
 
 ## Execute, review, accept
 
-Call `novel_literary_run(jobId)` within the author-granted allowance. It uses
+In the single-scene handoff, the author runs the returned job directly and
+inspects it before `/PNW-literary accept <jobId>`. Do not turn the handoff into an
+unrequested autonomous run. During separately authorized automatic continuation,
+call `novel_literary_run(jobId)` within the author-granted allowance. It uses
 one-message, no-tool, no-parent-history workers. A structure-first sketch guides
 bounded units; functionally different alternatives are optional for difficult
 moves, not synonym variation. Candidates remain provisional.
@@ -124,8 +134,33 @@ is only for an inspected dead same-machine owner; `/PNW-literary inspect <id>
 <reason>` acknowledges interrupted reservations without refunding unknown cost.
 Never delete locks or invent a successful checkpoint to resume.
 
+Status/recovery also supports sequence-audit jobs. They have accounting and
+possibly a saved audit reference, not a scene candidate or pipeline checkpoint.
+Preserve pending usage through stopped-owner recovery; inspect it explicitly.
+For another review attempt, request a fresh scoped audit with current sources
+and authority. Do not apply the scene run/accept or candidate-reuse recipe to an
+audit ID, and do not treat historical accepted job status as current coverage.
+
+Migration and job-accounting writers also have distinct owner records. Inspect
+`/PNW-literary migration-lock` or `/PNW-literary account-lock <jobId>`. Only the
+author may request `recover-migration-lock <token>` or
+`recover-account-lock <jobId> <token>` for an identified stopped same-machine
+owner. After migration-lock recovery, inspect its journal and recover it with
+`recover-migration <operationId>` only if incomplete. A complete or absent journal
+needs a fresh preview without rollback. Accounting-lock recovery preserves every reservation;
+inspect interrupted calls separately and retain their spent allowance. Live,
+foreign, changed, malformed and legacy empty owners still refuse recovery.
+
 Exhausted budgets, stale dependencies, ambiguous extractions, violated protected
 information and schema failures require explicit repair, branching or an honest
 blocker. Repeated polishing is not progress. Keep alternatives and exact failure
 evidence. Final reports distinguish implemented controls, proxy observations,
 model assessments and actual human contributions.
+
+An exhausted job cannot be refilled by session authorization. Disclose its fixed
+budget before execution. Follow `../../help/literary/walkthrough.md`'s exhausted-job
+recipe: inspect the saved candidate as data, compare current source with the
+job's original source, obtain explicit author permission for a source-bound
+working edit, then prepare and fund a fresh job. Never modify private checkpoints,
+discard previous charges, overwrite newer prose without a decision, or reuse old
+review approval. Candidate reuse is not in-place resumption or acceptance.

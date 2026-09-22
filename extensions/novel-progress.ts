@@ -486,7 +486,7 @@ export default function novelProgressExtension(pi: any) {
     handler: async (_args: string, ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true }, { triggerTurn: false });
         return;
       }
 
@@ -529,7 +529,7 @@ export default function novelProgressExtension(pi: any) {
           managedCoverage: manuscriptCoverage(project),
           history: progress.history
         }
-      });
+      }, { triggerTurn: false });
     }
   });
 
@@ -539,12 +539,12 @@ export default function novelProgressExtension(pi: any) {
     handler: async (args: string, ctx: any) => {
       const project = getProject();
       if (!project) {
-        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true });
+        pi.sendMessage({ customType: "markdown", content: "No project loaded. Run /PNW-init first.", display: true }, { triggerTurn: false });
         return;
       }
 
       if (sprintInterval) {
-        pi.sendMessage({ customType: "markdown", content: "A sprint is already running! Abort it with Ctrl+C first.", display: true });
+        pi.sendMessage({ customType: "markdown", content: "A sprint is already running! Abort it with Ctrl+C first.", display: true }, { triggerTurn: false });
         return;
       }
 
@@ -560,7 +560,7 @@ export default function novelProgressExtension(pi: any) {
         return `${String(m).padStart(2, "0")}:${String(s).padStart(2,"0")}`;
       };
 
-      pi.sendMessage({ customType: "markdown", content: `Sprint started: ${minutes} minutes. Go write!`, display: true });
+      pi.sendMessage({ customType: "markdown", content: `Sprint started: ${minutes} minutes. Go write!`, display: true }, { triggerTurn: false });
 
       // We attach to the global abort signal if available
       const controller = new AbortController();
@@ -578,7 +578,7 @@ export default function novelProgressExtension(pi: any) {
            const endWords = getTotalWords(project);
            const diff = endWords - sprintStartWords;
            const wpm = minutes > 0 ? (diff / minutes).toFixed(1) : 0;
-           pi.sendMessage({ customType: "markdown", content: `Sprint complete! You wrote ${diff} words (${wpm} WPM).`, display: true });
+           pi.sendMessage({ customType: "markdown", content: `Sprint complete! You wrote ${diff} words (${wpm} WPM).`, display: true }, { triggerTurn: false });
            if (ctx.ui?.setFooter) ctx.ui.setFooter(undefined);
            return;
         }
@@ -600,7 +600,7 @@ export default function novelProgressExtension(pi: any) {
            const endWords = getTotalWords(project);
            const diff = endWords - sprintStartWords;
            if (ctx.ui?.setFooter) ctx.ui.setFooter(undefined);
-           pi.sendMessage({ customType: "markdown", content: `Sprint aborted. You wrote ${diff} words.`, display: true });
+           pi.sendMessage({ customType: "markdown", content: `Sprint aborted. You wrote ${diff} words.`, display: true }, { triggerTurn: false });
          });
       }
 
@@ -608,7 +608,7 @@ export default function novelProgressExtension(pi: any) {
         customType: "markdown",
         content: `Sprint started. Check the footer for the timer!`,
         display: true
-      });
+      }, { triggerTurn: false });
     }
   });
 
@@ -625,7 +625,7 @@ export default function novelProgressExtension(pi: any) {
           `/${command.name}\n  ${command.description || ""}`).join("\n\n"),
         display: true,
         details: commands
-      });
+      }, { triggerTurn: false });
     }
   });
 
@@ -635,7 +635,7 @@ export default function novelProgressExtension(pi: any) {
       const project = getProject();
       const rootPath = project?.rootPath ?? null;
       const result = await detectWorkflowStage(project, rootPath);
-      pi.sendMessage({ customType: "novel-next", content: "Workflow status analyzed.", display: true, details: result });
+      pi.sendMessage({ customType: "novel-next", content: "Workflow status analyzed.", display: true, details: result }, { triggerTurn: false });
     }
   });
 

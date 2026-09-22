@@ -39,18 +39,18 @@ export default function novelWriteExtension(pi: any) {
 
   // Tiered Summaries structure
   function loadSummaries(project: any) {
-    const sumDir = path.join(project.rootPath, "summaries");
+    const sumDir = projectPath(project.rootPath, "summaries");
     const summaries: Record<string, string> = {};
-    ensureDir(path.join(sumDir, "scenes"));
-    ensureDir(path.join(sumDir, "chapters"));
-    ensureDir(path.join(sumDir, "acts"));
+    ensureDir(projectPath(project.rootPath, path.join(sumDir, "scenes")));
+    ensureDir(projectPath(project.rootPath, path.join(sumDir, "chapters")));
+    ensureDir(projectPath(project.rootPath, path.join(sumDir, "acts")));
     
     // Read scene summaries
     for (const f of fs.readdirSync(path.join(sumDir, "scenes"))) {
        if (f.endsWith(".md")) {
           const key = f.replace(".md", "");
           const scene = project.scenes.get(key);
-          const summary = parseFrontmatter(readText(path.join(sumDir, "scenes", f)));
+          const summary = parseFrontmatter(readText(projectPath(project.rootPath, path.join(sumDir, "scenes", f))));
           if (scene && summaryCurrent(project.rootPath, summary.meta, parseFrontmatter(readText(scene.filePath)).body)) {
             summaries[`scene:${key}`] = summary.body;
           }
@@ -60,7 +60,7 @@ export default function novelWriteExtension(pi: any) {
     for (const f of fs.readdirSync(path.join(sumDir, "chapters"))) {
        if (f.endsWith(".md")) {
           const source = chapterSource(project, Number(f.replace(".md", "")));
-          const summary = parseFrontmatter(readText(path.join(sumDir, "chapters", f)));
+          const summary = parseFrontmatter(readText(projectPath(project.rootPath, path.join(sumDir, "chapters", f))));
           if (summaryCurrent(project.rootPath, summary.meta, source)) summaries[`chapter:${f.replace(".md", "")}`] = summary.body;
        }
     }
@@ -84,7 +84,7 @@ export default function novelWriteExtension(pi: any) {
     // Voice Profile Injection (select POV character's voice profile)
     // Assume current scene is derived from recent history or manually set.
     // For now, load default root voice profile if available.
-    const voiceProfilePath = path.resolve(project.rootPath, project.config.settings.voiceProfilePath || "bible/voice-profile.md");
+    const voiceProfilePath = projectPath(project.rootPath, project.config.settings.voiceProfilePath || "bible/voice-profile.md");
     if (fs.existsSync(voiceProfilePath)) {
       const vpText = readText(voiceProfilePath);
       if (estimateTokens(vpText) <= budget.voiceProfile) {

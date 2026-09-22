@@ -5,6 +5,7 @@ import { projectPath } from '../utils/safety.ts';
 import { writeExact } from './io.ts';
 import { newId, objectHash } from './version.ts';
 import type { WorkerCall, WorkerPermit } from './workers.ts';
+import { inspectOwnedLock, recoverOwnedLock, withOwnedLock } from './owned-lock.ts';
 export const BudgetSchema = Strict({ maxCalls: Type.Integer({ minimum: 1, maximum: 10000 }), maxReservedTokens: Type.Integer({ minimum: 1, maximum: Number.MAX_SAFE_INTEGER }), maxCost: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]), maxRevisions: Type.Integer({ minimum: 0, maximum: 10 }) });
 export type RunBudget = Static<typeof BudgetSchema>;
 const JobSchema = Strict({ schemaVersion: Type.Literal(1), id: Id, projectId: Id, sceneId: Id, inputHash: Hash,
@@ -31,10 +32,13 @@ export class JobStore {
     if (job.projectId !== this.projectId || job.id !== id) throw new Error('Job belongs to another project'); return job;
   }
   update(id: string, fn: (job: SceneJob) => void): SceneJob {
-    const file = this.file(id), lock = `${file}.lock`; const fd = fs.openSync(lock, 'wx', 0o600);
-    try { const job = this.read(id); fn(job); checked(JobSchema, job); writeExact(file, JSON.stringify(job)); return job; }
-    finally { fs.closeSync(fd); fs.unlinkSync(lock); }
+    const file = this.file(id);
+    return withOwnedLock(this.root, `${file}.lock`, id, () => {
+      const job = this.read(id); fn(job); checked(JobSchema, job); writeExact(file, JSON.stringify(job)); return job;
+    });
   }
+  inspectLock(id: string) { return inspectOwnedLock(this.root, `${this.file(id)}.lock`); }
+  recoverLock(id: string, token: string): void { this.read(id); recoverOwnedLock(this.root, `${this.file(id)}.lock`, token, id); }
   reserve(id: string, signature: string, tokens: number, permit: WorkerPermit): string {
     if (!permit.active() || permit.projectId !== this.projectId) throw new Error('Run is not authorized');
     const reservationId = newId();

@@ -95,10 +95,10 @@ export function exportManuscript(project: NovelProject, options: ExportOptions =
     sceneCount: scenes.length, words: scenes.reduce((n, s) => n + countWords(s.body), 0),
     scenes: scenes.map(({ body: _body, ...s }) => s), sources: sourceRefs, warnings,
     evaluation: 'Export does not establish literary merit or independent human evaluation.' };
-  // Write the manifest first. A failed manuscript write cannot masquerade as a
-  // complete export. Neither file is overwritten on repeated calls.
+  // Retain the intended-source manifest on failure. Only a successful return
+  // claims a completed export; neither file is overwritten on repeated calls.
   fs.writeFileSync(manifestPath, canonicalJson(manifest), { flag: 'wx', mode: 0o600 });
   try { fs.writeFileSync(file, text, { flag: 'wx', mode: 0o600 }); }
-  catch (error) { fs.unlinkSync(manifestPath); throw error; }
+  catch (error) { throw new Error(`Export incomplete: ${error instanceof Error ? error.message : String(error)}; manifest retained at ${manifestPath}`, { cause: error }); }
   return { path: file, manifestPath, mode, head, warnings };
 }

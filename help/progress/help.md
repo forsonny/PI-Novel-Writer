@@ -4,6 +4,9 @@
 estimated “written today” value, seven UTC-date snapshots, and current-session
 usage when available.
 
+The dashboard is informational; displaying it does not request another model
+response or resume paused writing.
+
 History stores total manuscript words at the latest agent turn on each UTC date.
 Today's displayed change is current total minus yesterday's stored total; if no
 yesterday snapshot exists, it treats the entire manuscript as today's words. It is
